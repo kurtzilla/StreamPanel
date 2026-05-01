@@ -1,0 +1,48 @@
+# Env vars: `**/*.env` matches paths like `prod.env` and also the directory named `.env` — un-ignore that folder + template only
+**/*.env
+!.env/
+!.env/.env.example
+
+# Other files under `.env/` (e.g. `local`, `.env`) — ignore all except template
+.env/*
+!.env/
+!.env/.env.example
+
+# Dotenv-style files at repo root (e.g. `.env.local`)
+/.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDE
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Dependencies & build
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Misc local
+*.local

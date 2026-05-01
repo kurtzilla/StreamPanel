@@ -1,0 +1,11 @@
+[project]
+name = "streampanel"
+version = "0.0.0"
+description = "StreamPanel"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "StreamPanel contributors" }]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

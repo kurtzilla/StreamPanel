@@ -1,3 +1,12 @@
-# Source
+# Source layout
 
-Python package layout will land here (e.g. `streampanel/`). Metadata stays in root [`pyproject.toml`](../pyproject.toml).
+Python package: **`streampanel`** under [`streampanel/`](streampanel/) (src layout).
+
+Run from repo root after editable install:
+
+```bash
+pip install -e .
+python -m streampanel
+```
+
+Or: `streampanel` (console script).

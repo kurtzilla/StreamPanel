@@ -12,7 +12,7 @@ Single index for humans and agents: layout, Cursor workflow, status.
 | [`.cursor/`](.cursor/) | **Cursor IDE only** — Agent rules under [`.cursor/rules/`](.cursor/rules/). Not general docs → see [`docs/cursor.md`](docs/cursor.md) |
 | [`.project/`](.project/) | Workspace for notes, ideas, misc files—tracked but not app source ([readme](.project/README.md)) |
 | [`.scripts/`](.scripts/) | Build helpers, scripts—tracked; does not ship with the app ([readme](.scripts/README.md)) |
-| [`src/`](src/) | Application source (Python package layout TBD) |
+| [`src/streampanel/`](src/streampanel/) | Python package (`python -m streampanel`) |
 | [`vendor/`](vendor/README.md) | Optional **in-repo** vendored/submodule trees—**not** where normal PyPI deps live ([`pyproject.toml`](pyproject.toml)) |
 | [`docs/`](docs/) | **Shared documentation** — plans, ADRs, guides ([`docs/README.md`](docs/README.md)) |
 | [`.env/`](.env/) | Environment templates and local-only env files ([`.env/.env.example`](.env/.env.example) committed) |
@@ -26,8 +26,25 @@ Single index for humans and agents: layout, Cursor workflow, status.
 ## Cursor (IDE) workflow
 
 - **Rules:** [`.cursor/rules/`](.cursor/rules/) (start with [`streampanel-core.md`](.cursor/rules/streampanel-core.md)).
-- **Product plans & docs:** [`docs/plans/`](docs/plans/README.md) and [`docs/`](docs/README.md)—not under `.cursor/`. See [`docs/cursor.md`](docs/cursor.md).
+- **Product plans & docs:** [`docs/plans/`](docs/plans/README.md) (includes **[execution queue](docs/plans/execution.md)**) and [`docs/`](docs/README.md)—not under `.cursor/`. See [`docs/cursor.md`](docs/cursor.md).
+
+## Run (dev)
+
+From repo root:
+
+```bash
+pip install -e .
+python -m streampanel
+```
+
+(`streampanel` console script is installed too; ensure your Python **Scripts** directory is on `PATH` if the command is not found.)
+
+Tests:
+
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
 
 ## Status
 
-Scaffold: Python `pyproject.toml` present; app entry and run instructions to follow.
+**`sqlite-store`** done — SQLite `deck_items`, sync from shortcuts folder, CRUD/reorder ([`docs/plans/execution.md`](docs/plans/execution.md)). Next: **`window-chrome`**.

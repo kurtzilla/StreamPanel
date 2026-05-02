@@ -21,6 +21,58 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 This is the same recipe used by the `manual-verify` row in [`docs/plans/execution.md`](plans/execution.md); please run it before opening a PR.
 
+## Git: fork and `upstream`
+
+If you work from a **fork**, keep **two remotes**:
+
+- **`origin`** — your fork (the default after `git clone` of the fork).
+- **`upstream`** — the canonical StreamPanel repo, so you can pull changes from maintainers before you open or update a PR.
+
+The canonical project URL lives in [`pyproject.toml`](../pyproject.toml) under **`[project.urls]`** (**Repository**). For Git, use that page’s clone URL or:
+
+`https://github.com/kurtzilla/StreamPanel.git`
+
+The default branch is **`master`**. If the project renames it, substitute the new name in the commands below.
+
+**One-time:** add `upstream` and confirm remotes (same commands in PowerShell, Command Prompt, or Git Bash):
+
+```bash
+git remote add upstream https://github.com/kurtzilla/StreamPanel.git
+git remote -v
+```
+
+If `upstream` already exists with the wrong URL, run `git remote set-url upstream https://github.com/kurtzilla/StreamPanel.git` instead.
+
+**Sync** your topic branch before pushing:
+
+```bash
+git fetch upstream
+```
+
+Then either **merge** upstream into your branch:
+
+```bash
+git switch your-branch
+git merge upstream/master
+```
+
+or **rebase** your commits on top of upstream:
+
+```bash
+git switch your-branch
+git rebase upstream/master
+```
+
+Either approach is fine; pick what keeps your PR easy to review and matches any guidance from maintainers.
+
+**Open a PR:** push to your fork and open the pull request against the canonical repo:
+
+```bash
+git push -u origin your-branch
+```
+
+If you cloned the canonical repository directly, `origin` may already be the canonical remote; you only need `upstream` when `origin` is your fork.
+
 ## Package tour
 
 `src/streampanel/` is a flat module layout (src layout per [`pyproject.toml`](../pyproject.toml)):

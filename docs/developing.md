@@ -36,7 +36,7 @@ This is the same recipe used by the `manual-verify` row in [`docs/plans/executio
 - [`add_link_dialog.py`](../src/streampanel/add_link_dialog.py) — modal that writes a `.url` into the shortcuts folder.
 - [`item_editor.py`](../src/streampanel/item_editor.py) — modal for label override, notes, `confirm_launch`, hide-from-deck.
 - [`settings_dialog.py`](../src/streampanel/settings_dialog.py) — modal for appearance, shortcuts folder override, deck columns, show-hidden toggle.
-- [`channels_view.py`](../src/streampanel/channels_view.py) — primary-click viewer stub (lower pane lands later).
+- [`channels_view.py`](../src/streampanel/channels_view.py) — primary-click Channels window (**Launch** → [`runtime_shell.py`](../src/streampanel/runtime_shell.py)); lower pane later.
 
 ## Tests
 

@@ -48,11 +48,11 @@ To add a Windows application or local file, drop a `.lnk` into the shortcuts fol
 
 ## Editing a deck item
 
-- Left-click a deck cell — opens the item in the Channels viewer ([`src/streampanel/channels_view.py`](../src/streampanel/channels_view.py); a stub today, the lower pane lands later) and records a launch event.
+- Left-click a deck cell — opens the Channels window ([`src/streampanel/channels_view.py`](../src/streampanel/channels_view.py); lower pane later). That records a **`view`** event in `launch_events`. Click **Launch** there to open the shortcut with the OS default app (via [`runtime_shell.py`](../src/streampanel/runtime_shell.py)); a successful open records a **`launch`** event.
 - Right-click a deck cell — opens the item editor ([`src/streampanel/item_editor.py`](../src/streampanel/item_editor.py)) with:
   - Display label (empty falls back to the source filename stem).
   - Notes (free-form text).
-  - "Confirm before system launch" — sets the `confirm_launch` flag for the future system-launch path.
+  - "Confirm before launch (Channels)" — when checked, the Channels **Launch** button asks for confirmation before calling the system handler.
   - "Hide from deck" — keeps the item in the library but removes it from the grid (toggle visibility from Settings).
 
 Source path is shown read-only; changing where a shortcut lives means moving the file on disk and letting sync reconcile.

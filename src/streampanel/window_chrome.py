@@ -24,6 +24,47 @@ def _stub_dialog(parent: ctk.CTk, title: str, message: str) -> None:
     ctk.CTkButton(frame, text="OK", command=win.destroy, width=80).pack()
 
 
+def confirm_dialog(parent: ctk.CTk, title: str, message: str, *, confirm_text: str = "Launch") -> bool:
+    """Modal OK/Cancel-style dialog; returns True if the user chose *confirm_text*."""
+    accepted: list[bool] = [False]
+    win = ctk.CTkToplevel(parent)
+    win.title(title)
+    win.geometry("380x140")
+    win.minsize(340, 120)
+    win.transient(parent)
+    win.configure(fg_color=COLOR_BG)
+    win.attributes("-topmost", True)
+    win.after(100, lambda: win.attributes("-topmost", False))
+    win.grab_set()
+
+    frame = ctk.CTkFrame(win, fg_color="transparent")
+    frame.pack(fill="both", expand=True, padx=16, pady=16)
+    ctk.CTkLabel(frame, text=message, wraplength=340, justify="left").pack(
+        fill="x", pady=(0, 12)
+    )
+    row = ctk.CTkFrame(frame, fg_color="transparent")
+    row.pack(fill="x")
+
+    def on_cancel() -> None:
+        try:
+            win.grab_release()
+        except Exception:
+            pass
+        win.destroy()
+
+    def on_confirm() -> None:
+        accepted[0] = True
+        on_cancel()
+
+    win.protocol("WM_DELETE_WINDOW", on_cancel)
+
+    ctk.CTkButton(row, text=confirm_text, command=on_confirm, width=100).pack(side="right")
+    ctk.CTkButton(row, text="Cancel", command=on_cancel, width=100).pack(side="right", padx=(0, 8))
+
+    parent.wait_window(win)
+    return accepted[0]
+
+
 def _bind_drag_region(widget: ctk.CTkFrame, root: ctk.CTk) -> None:
     drag_attr = "_streampanel_drag_xy"
 

@@ -165,8 +165,14 @@ def open_settings_dialog(
     win.after(120, lambda: win.attributes("-topmost", False))
     win.grab_set()
 
-    outer = ctk.CTkFrame(win, fg_color="transparent")
-    outer.pack(fill="both", expand=True, padx=16, pady=16)
+    container = ctk.CTkFrame(win, fg_color="transparent")
+    container.pack(fill="both", expand=True, padx=16, pady=16)
+
+    btn_row = ctk.CTkFrame(container, fg_color="transparent")
+    btn_row.pack(side="bottom", fill="x", pady=(12, 0))
+
+    outer = ctk.CTkScrollableFrame(container, fg_color="transparent")
+    outer.pack(side="top", fill="both", expand=True)
 
     theme_labels = [themes.THEME_LABELS[tid] for tid in themes.THEME_IDS]
     label_to_theme = {themes.THEME_LABELS[tid]: tid for tid in themes.THEME_IDS}
@@ -339,30 +345,6 @@ def open_settings_dialog(
         variable=show_hidden_var,
     ).pack(anchor="w", pady=(0, 8))
 
-    _primary_labels = ("Open Channels", "Launch immediately")
-    _primary_label_for: dict[str, str] = {
-        store.DECK_PRIMARY_CHANNELS: _primary_labels[0],
-        store.DECK_PRIMARY_LAUNCH: _primary_labels[1],
-    }
-    _primary_action_for = {
-        _primary_labels[0]: store.DECK_PRIMARY_CHANNELS,
-        _primary_labels[1]: store.DECK_PRIMARY_LAUNCH,
-    }
-
-    ctk.CTkLabel(outer, text="Primary deck click", anchor="w").pack(fill="x", pady=(0, 4))
-    ctk.CTkLabel(
-        outer,
-        text="Open Channels: single click opens this window (double-click launches). "
-        "Launch immediately: single click runs the shortcut without opening Channels.",
-        anchor="w",
-        justify="left",
-        wraplength=440,
-        text_color=("gray75", "gray70"),
-    ).pack(fill="x", pady=(0, 6))
-    primary_menu = ctk.CTkOptionMenu(outer, values=list(_primary_labels))
-    primary_menu.pack(fill="x", pady=(0, 12))
-    primary_menu.set(_primary_label_for.get(current.deck_primary_action, _primary_labels[0]))
-
     always_on_top_var = ctk.BooleanVar(value=shell.always_on_top)
     ctk.CTkCheckBox(
         outer,
@@ -381,14 +363,6 @@ def open_settings_dialog(
     ctk.CTkLabel(outer, text="Panel drag animation", anchor="w").pack(
         fill="x", pady=(0, 4)
     )
-    ctk.CTkLabel(
-        outer,
-        text="After you release a strip drag: snap instantly, fade the window in at the new spot, or slide it there.",
-        anchor="w",
-        justify="left",
-        wraplength=440,
-        text_color=("gray75", "gray70"),
-    ).pack(fill="x", pady=(0, 6))
     drag_anim_menu = ctk.CTkOptionMenu(outer, values=list(_drag_anim_displays))
     drag_anim_menu.pack(fill="x", pady=(0, 12))
     drag_anim_menu.set(
@@ -548,8 +522,6 @@ def open_settings_dialog(
         sd = _shortcuts_dir_from_path()
         if _path_str_norm() and sd is None:
             sd = "__invalid__"
-        plab = primary_menu.get()
-        deck_primary_action = _primary_action_for.get(plab, store.DECK_PRIMARY_CHANNELS)
         plab2 = placement_menu.get()
         window_startup_placement = _placement_value_for.get(
             plab2, store.WINDOW_STARTUP_CENTER
@@ -568,7 +540,6 @@ def open_settings_dialog(
             "shortcuts": sd,
             "deck_cell_px": store.clamp_deck_cell_px(_deck_cell_px_from_ui()),
             "deck_show_hidden_items": bool(show_hidden_var.get()),
-            "deck_primary_action": deck_primary_action,
             "window_startup_placement": window_startup_placement,
             "panel_drag_animation": panel_drag_animation,
             "panel_drawer_autoclose_sec": panel_drawer_autoclose_sec,
@@ -590,7 +561,6 @@ def open_settings_dialog(
             or w["shortcuts"] != a["shortcuts"]
             or int(w["deck_cell_px"]) != int(a["deck_cell_px"])
             or bool(w["deck_show_hidden_items"]) != bool(a["deck_show_hidden_items"])
-            or w["deck_primary_action"] != a["deck_primary_action"]
             or w["window_startup_placement"] != a["window_startup_placement"]
             or w["panel_drag_animation"] != a["panel_drag_animation"]
             or w.get("panel_drawer_autoclose_sec") != a.get("panel_drawer_autoclose_sec")
@@ -623,7 +593,6 @@ def open_settings_dialog(
                 "grid_cols": store.clamp_grid_cols(s.grid_cols),
                 "deck_cell_px": px,
                 "deck_show_hidden_items": s.deck_show_hidden_items,
-                "deck_primary_action": s.deck_primary_action,
                 "window_startup_placement": s.window_startup_placement,
                 "panel_drag_animation": s.panel_drag_animation,
                 "panel_drawer_autoclose_sec": s.panel_drawer_autoclose_sec,
@@ -672,9 +641,6 @@ def open_settings_dialog(
             cell_custom_entry.insert(0, str(px_d))
         _sync_tile_buttons()
         show_hidden_var.set(d.deck_show_hidden_items)
-        primary_menu.set(
-            _primary_label_for.get(d.deck_primary_action, _primary_labels[0])
-        )
         placement_menu.set(
             _placement_label_for.get(
                 d.window_startup_placement, _placement_labels[0]
@@ -698,9 +664,6 @@ def open_settings_dialog(
         _sync_last_applied_from_settings(d, False)
         _mark_dirty()
         _stub_dialog(win, "Settings reset", "All preferences were restored to defaults.")
-
-    btn_row = ctk.CTkFrame(outer, fg_color="transparent")
-    btn_row.pack(fill="x", pady=(16, 0))
 
     def dismiss() -> None:
         try:
@@ -735,9 +698,6 @@ def open_settings_dialog(
         ui_scale = preset_by_label.get(scale_label, store.UI_SCALE_DEFAULT)
         ui_scale = store.clamp_ui_scale(ui_scale)
 
-        plab = primary_menu.get()
-        deck_primary_action = _primary_action_for.get(plab, store.DECK_PRIMARY_CHANNELS)
-
         theme_label = theme_menu.get()
         ui_theme = label_to_theme.get(theme_label, themes.default_theme_id())
         appearance_mode = themes.theme_appearance(ui_theme)
@@ -767,7 +727,6 @@ def open_settings_dialog(
             deck_cell_px=deck_cell_px,
             deck_show_hidden_items=bool(show_hidden_var.get()),
             ui_scale=ui_scale,
-            deck_primary_action=deck_primary_action,
             window_startup_placement=window_startup_placement,
             panel_drag_animation=panel_drag_animation,
             panel_drawer_autoclose_sec=panel_drawer_autoclose_sec,
@@ -808,7 +767,6 @@ def open_settings_dialog(
         theme_menu.configure(command=lambda _v: _mark_dirty())
         scale_menu.configure(command=lambda _v: _mark_dirty())
         placement_menu.configure(command=lambda _v: _mark_dirty())
-        primary_menu.configure(command=lambda _v: _mark_dirty())
         drag_anim_menu.configure(command=lambda _v: _mark_dirty())
         drawer_autoclose_menu.configure(command=lambda _v: _mark_dirty())
         path_entry.bind("<KeyRelease>", lambda _e: _mark_dirty())

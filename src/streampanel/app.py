@@ -10,7 +10,6 @@ import customtkinter as ctk
 from streampanel import single_instance, store, themes, win_monitors
 from streampanel.add_link_dialog import open_add_link_dialog
 from streampanel.panel_dnd import install_panel_drop_handlers
-from streampanel.channels_view import open_channels_for_item
 from streampanel.deck_grid import DeckGridView
 from streampanel.item_editor import open_item_editor
 from streampanel.item_launch import try_launch_deck_item
@@ -36,6 +35,7 @@ from streampanel.win_overlay import (
     set_tool_window_excluded,
 )
 from streampanel.window_chrome import (
+    STRIP_HEIGHT,
     _stub_dialog,
     apply_borderless_chrome,
     refresh_chrome_theme,
@@ -298,29 +298,13 @@ def run() -> None:
                             b.configure(fg_color="transparent")
         persist_now()
 
-    def on_deck_double_click(it: store.DeckItem) -> None:
-        try_launch_deck_item(root, it)
-
     def apply_deck() -> None:
         """Rebuild grid from ``items_ref``; updates ``n_ref`` for layout."""
         dg = deck_grid_holder[0]
         if dg is None:
             return
-        st = app_settings_ref[0]
         shown = list(items_ref[0])
         n_ref[0] = len(shown)
-        delay = (
-            350 if st.deck_primary_action == store.DECK_PRIMARY_CHANNELS else 0
-        )
-        double_cb = (
-            on_deck_double_click
-            if st.deck_primary_action == store.DECK_PRIMARY_CHANNELS
-            else None
-        )
-        dg.set_primary_interaction(
-            primary_click_delay_ms=delay,
-            on_item_double_click=double_cb,
-        )
         dg.set_reorder_handler(on_deck_reorder)
         dg.rebuild(shown)
         flush_layout_and_persist()
@@ -391,16 +375,7 @@ def run() -> None:
         )
 
     def on_item_primary(it: store.DeckItem) -> None:
-        st = app_settings_ref[0]
-        if st.deck_primary_action == store.DECK_PRIMARY_LAUNCH:
-            try_launch_deck_item(root, it)
-            return
-        open_channels_for_item(root, it)
-        c = store.connect()
-        try:
-            store.record_item_open(c, item_id=it.id, source_path=it.source_path)
-        finally:
-            c.close()
+        try_launch_deck_item(root, it)
 
     def on_item_edit(it: store.DeckItem) -> None:
         open_item_editor(root, it.id, on_saved=reload_deck)
@@ -507,6 +482,13 @@ def run() -> None:
         root.after(0, _apply_monitor_move)
 
     mon_labels = [f"Display {i + 1}" for i in range(len(mons0))]
+    monitor_spatial_strip = (
+        win_monitors.monitor_strip_spatial_ui(
+            mons0, strip_inner_height=max(22, STRIP_HEIGHT - 10)
+        )
+        if len(mons0) > 1
+        else None
+    )
 
     def _get_drag_ghost_wh() -> tuple[int, int]:
         w0 = int(root.winfo_width())
@@ -528,6 +510,7 @@ def run() -> None:
         top_rail_snap=_top_rail_snap,
         monitor_values=mon_labels if len(mons0) > 1 else None,
         on_monitor_selected=_on_monitor_menu if len(mons0) > 1 else None,
+        monitor_spatial_strip=monitor_spatial_strip,
         on_panel_drag_start=on_panel_drag_start,
         on_panel_drag_end=on_panel_drag_end,
         get_drag_animation=lambda: app_settings_ref[0].panel_drag_animation,
@@ -553,16 +536,6 @@ def run() -> None:
         on_item_edit=on_item_edit,
         on_add=on_add_link,
         on_reorder=on_deck_reorder,
-        primary_click_delay_ms=(
-            350
-            if app_settings.deck_primary_action == store.DECK_PRIMARY_CHANNELS
-            else 0
-        ),
-        on_item_double_click=(
-            on_deck_double_click
-            if app_settings.deck_primary_action == store.DECK_PRIMARY_CHANNELS
-            else None
-        ),
     )
     apply_deck()
     deck_grid_holder[0].widget.pack(anchor="n")

@@ -129,7 +129,7 @@ def open_item_editor(
     confirm_var = ctk.BooleanVar(value=bool(flags.get(_FLAG_CONFIRM)))
     ctk.CTkCheckBox(
         outer,
-        text="Confirm before launch (Channels)",
+        text="Confirm before launch",
         variable=confirm_var,
     ).pack(anchor="w", pady=(0, 6))
     hide_var = ctk.BooleanVar(value=bool(flags.get(store.FLAG_HIDE_FROM_DECK)))

@@ -135,10 +135,6 @@ _K_APP_SETTINGS = "app_settings_v1"
 
 APPEARANCE_MODES: tuple[str, ...] = ("dark", "light", "system")
 _APPEARANCE_MODES = frozenset(APPEARANCE_MODES)
-DECK_PRIMARY_CHANNELS = "channels"
-DECK_PRIMARY_LAUNCH = "launch"
-DECK_PRIMARY_ACTIONS: tuple[str, ...] = (DECK_PRIMARY_CHANNELS, DECK_PRIMARY_LAUNCH)
-_DECK_PRIMARY_ACTIONS = frozenset(DECK_PRIMARY_ACTIONS)
 WINDOW_STARTUP_CENTER = "center"
 WINDOW_STARTUP_LAST_POSITION = "last_position"
 WINDOW_STARTUP_MODES: tuple[str, ...] = (
@@ -293,7 +289,6 @@ class AppSettings:
     deck_cell_px: int
     deck_show_hidden_items: bool
     ui_scale: float
-    deck_primary_action: str
     window_startup_placement: str
     panel_drag_animation: str
     panel_drawer_autoclose_sec: int | None
@@ -308,7 +303,6 @@ def default_app_settings() -> AppSettings:
         deck_cell_px=DEFAULT_DECK_CELL_PX,
         deck_show_hidden_items=False,
         ui_scale=UI_SCALE_DEFAULT,
-        deck_primary_action=DECK_PRIMARY_CHANNELS,
         window_startup_placement=WINDOW_STARTUP_CENTER,
         panel_drag_animation=PANEL_DRAG_ANIM_NONE,
         panel_drawer_autoclose_sec=None,
@@ -405,11 +399,6 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
         except (TypeError, ValueError, OverflowError):
             ui_scale = base.ui_scale
 
-    deck_primary_action = base.deck_primary_action
-    raw_dpa = data.get("deck_primary_action")
-    if isinstance(raw_dpa, str) and raw_dpa in _DECK_PRIMARY_ACTIONS:
-        deck_primary_action = raw_dpa
-
     window_startup_placement = base.window_startup_placement
     raw_wsp = data.get("window_startup_placement")
     if isinstance(raw_wsp, str) and raw_wsp in _WINDOW_STARTUP_MODES:
@@ -434,7 +423,6 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
         deck_cell_px=deck_cell_px,
         deck_show_hidden_items=deck_show_hidden_items,
         ui_scale=ui_scale,
-        deck_primary_action=deck_primary_action,
         window_startup_placement=window_startup_placement,
         panel_drag_animation=panel_drag_animation,
         panel_drawer_autoclose_sec=panel_drawer_autoclose_sec,
@@ -466,7 +454,6 @@ def save_app_settings(conn: sqlite3.Connection, settings: AppSettings) -> None:
         "deck_cell_px": settings.deck_cell_px,
         "deck_show_hidden_items": settings.deck_show_hidden_items,
         "ui_scale": settings.ui_scale,
-        "deck_primary_action": settings.deck_primary_action,
         "window_startup_placement": settings.window_startup_placement,
         "panel_drag_animation": settings.panel_drag_animation,
         "panel_drawer_autoclose_sec": settings.panel_drawer_autoclose_sec,

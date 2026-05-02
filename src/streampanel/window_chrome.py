@@ -669,6 +669,8 @@ def apply_borderless_chrome(
     top_rail_snap: Callable[[int, int, int, int, int], tuple[int, int]] | None = None,
     monitor_values: list[str] | None = None,
     on_monitor_selected: Callable[[str], None] | None = None,
+    monitor_spatial_strip: tuple[list[tuple[float, float]], tuple[int, int]]
+    | None = None,
     on_panel_drag_start: Callable[[], None] | None = None,
     on_panel_drag_end: Callable[[], None] | None = None,
     get_drag_animation: Callable[[], str] | None = None,
@@ -680,6 +682,9 @@ def apply_borderless_chrome(
     display picker, gear (Settings), Close.
 
     Optional ``monitor_*`` uses small ``CTkButton`` labels (no ``Menu.post``).
+    When ``monitor_spatial_strip`` is ``(centers, (host_w, host_h))`` with the
+    same length as ``monitor_values``, buttons are positioned with ``place`` in a minimap
+    host reflecting monitor geometry; otherwise a flat row is used.
     ``top_rail_snap`` pins the strip drag to the top work edge.
     When ``on_panel_drag_start`` and ``on_panel_drag_end`` are both set, strip
     dragging uses a ghost preview toplevel and defers moving the root until release.
@@ -766,24 +771,52 @@ def apply_borderless_chrome(
         and callable(on_monitor_selected)
     ):
         if len(monitor_values) <= _MONITOR_SEG_MAX:
+            # TODO(streampanel): richer display strip — see docs/plans/execution.md (display switcher backlog).
             host = ctk.CTkFrame(right_row, fg_color="transparent")
-            host.pack(side="left", padx=(0, 6), pady=0)
-            for i in range(len(monitor_values)):
-                lab = str(i + 1)
-                mb = ctk.CTkButton(
-                    host,
-                    text=lab,
-                    command=lambda s=lab: on_monitor_selected(s),
-                    width=28,
-                    height=26,
-                    corner_radius=4,
-                    font=ctk.CTkFont(size=12),
-                    fg_color="transparent",
-                    hover_color=p.strip_button_hover,
-                    text_color=p.drag_hint_text,
-                )
-                mb.pack(side="left", padx=(0, 2))
-                monitor_buttons.append(mb)
+            host.pack(side="left", padx=(0, 6), pady=2)
+            centers: list[tuple[float, float]] | None = None
+            host_wh: tuple[int, int] | None = None
+            if monitor_spatial_strip is not None:
+                c0, wh0 = monitor_spatial_strip
+                if len(c0) == len(monitor_values):
+                    centers, host_wh = c0, wh0
+            if centers is not None and host_wh is not None:
+                host_w, host_h = host_wh
+                host.configure(width=host_w, height=host_h)
+                host.pack_propagate(False)
+                for i, (nx, ny) in enumerate(centers):
+                    lab = str(i + 1)
+                    mb = ctk.CTkButton(
+                        host,
+                        text=lab,
+                        command=lambda s=lab: on_monitor_selected(s),
+                        width=28,
+                        height=26,
+                        corner_radius=4,
+                        font=ctk.CTkFont(size=12),
+                        fg_color="transparent",
+                        hover_color=p.strip_button_hover,
+                        text_color=p.drag_hint_text,
+                    )
+                    mb.place(relx=nx, rely=ny, anchor="center")
+                    monitor_buttons.append(mb)
+            else:
+                for i in range(len(monitor_values)):
+                    lab = str(i + 1)
+                    mb = ctk.CTkButton(
+                        host,
+                        text=lab,
+                        command=lambda s=lab: on_monitor_selected(s),
+                        width=28,
+                        height=26,
+                        corner_radius=4,
+                        font=ctk.CTkFont(size=12),
+                        fg_color="transparent",
+                        hover_color=p.strip_button_hover,
+                        text_color=p.drag_hint_text,
+                    )
+                    mb.pack(side="left", padx=(0, 2))
+                    monitor_buttons.append(mb)
         else:
 
             def overflow_cb() -> None:

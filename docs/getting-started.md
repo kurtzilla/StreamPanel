@@ -36,7 +36,7 @@ The top strip ([`src/streampanel/window_chrome.py`](../src/streampanel/window_ch
 - Add link — opens the modal in [`src/streampanel/add_link_dialog.py`](../src/streampanel/add_link_dialog.py).
 - Close — saves geometry and exits.
 
-**Keyboard:** When the main window is active and no modal has the global grab, **Ctrl+Comma** opens Settings and **Ctrl+N** opens Add link. On deck shortcut tiles, **Enter** or **Space** runs the same primary action as a left click (including the short delay when **Primary deck click** is **Open Channels**). **Escape** closes simple message dialogs, Settings, Add link, and Edit shortcut (child widgets such as multiline notes may consume Escape first). In the Channels window, **Escape** closes the window.
+**Keyboard:** When the main window is active and no modal has the global grab, **Ctrl+Comma** opens Settings and **Ctrl+N** opens Add link. On deck shortcut tiles, **Enter** or **Space** launches the shortcut just like a left click. **Escape** closes simple message dialogs, Settings, Add link, and Edit shortcut (child widgets such as multiline notes may consume Escape first).
 
 ## Adding a link
 
@@ -54,14 +54,13 @@ To add a Windows application or local file, drop a `.lnk` into the shortcuts fol
 
 ## Editing a deck item
 
-- Left-click a deck cell — behaviour depends on **Primary deck click** in Settings (see below). The default (**Open Channels**) opens the Channels window ([`src/streampanel/channels_view.py`](../src/streampanel/channels_view.py)) after a short delay so a quick **double-click** can launch the shortcut immediately instead (same confirm rules as **Launch** in Channels). Opening Channels records a **`view`** event in `launch_events`. **Launch immediately** skips Channels and runs the shortcut with the OS default app (via [`runtime_shell.py`](../src/streampanel/runtime_shell.py) and [`item_launch.py`](../src/streampanel/item_launch.py)); a successful open records a **`launch`** event.
-- In Channels, the lower area shows **Notes** for the shortcut and **Recent activity** (recent views and launches from the database). After you press **Launch**, the activity list refreshes.
+- Left-click a deck cell — runs the shortcut with the OS default app (via [`runtime_shell.py`](../src/streampanel/runtime_shell.py) and [`item_launch.py`](../src/streampanel/item_launch.py)); a successful open records a **`launch`** event in `launch_events`.
 - Drag a deck cell onto another tile — reorders shortcuts on the deck (persisted in the database). Use a short drag past the movement threshold so a normal click still runs the primary action. **Drag reorder is disabled while the filter text is non-empty** so indices stay aligned with the full deck order in the database.
 - Right-click a deck cell — opens the item editor ([`src/streampanel/item_editor.py`](../src/streampanel/item_editor.py)) with:
   - Display label (empty falls back to the source filename stem).
   - **Deck icon** — optional path to an icon/image or executable; **Browse** picks a file, **Clear** removes the custom icon, and a small preview updates as you type a valid path. This is stored per item in the database (independent of any `IconFile` inside a `.url` on disk).
   - Notes (free-form text).
-  - "Confirm before launch (Channels)" — when checked, the Channels **Launch** button asks for confirmation before calling the system handler.
+  - "Confirm before launch" — when checked, launching the shortcut asks for confirmation before calling the system handler.
   - "Hide from deck" — keeps the item in the library but removes it from the grid (toggle visibility from Settings).
 
 Source path is shown read-only; changing where a shortcut lives means moving the file on disk and letting sync reconcile.
@@ -74,7 +73,6 @@ The Settings modal ([`src/streampanel/settings_dialog.py`](../src/streampanel/se
 - Shortcuts folder — leave empty for the default; otherwise pick an existing directory. Invalid or missing paths fall back to the default.
 - Deck columns — `GRID_COLS_MIN`..`GRID_COLS_MAX` (currently 2–8). Column count drives both grid layout and the panel's min/max height.
 - Show items hidden from deck on the grid — surfaces items flagged with hide-from-deck so you can edit them again.
-- Primary deck click — **Open Channels** (default) or **Launch immediately** (`deck_primary_action` in [`src/streampanel/store.py`](../src/streampanel/store.py)).
 - About / Diagnostics — read-only summary (version, Python, database and shortcuts paths, item counts) plus **Copy diagnostics to clipboard** for bug reports or support.
 
 Changes apply immediately on Save: appearance is re-applied, the deck rebuilds, and the panel resizes to fit the new column count.

@@ -45,15 +45,11 @@ class DeckGridView:
         on_item_edit: Callable[[DeckItem], None],
         on_add: Callable[[], None],
         on_reorder: Callable[[int, int], None] | None = None,
-        primary_click_delay_ms: int = 0,
-        on_item_double_click: Callable[[DeckItem], None] | None = None,
     ) -> None:
         self._on_primary = on_item_primary
         self._on_edit = on_item_edit
         self._on_add = on_add
         self._on_reorder = on_reorder
-        self._primary_delay_ms = max(0, int(primary_click_delay_ms))
-        self._on_double = on_item_double_click
         self._items: list[DeckItem] = []
         self._cols = clamp_grid_cols(cols)
         self._cell_px = int(cell_px)
@@ -62,8 +58,6 @@ class DeckGridView:
         self._rows_host.pack(anchor="n")
         self._press: tuple[int, int, int, DeckItem] | None = None
         self._dragging = False
-        self._defer_after_id: int | None = None
-        self._suppress_next_primary = False
         self._cell_image_refs: list[ctk.CTkImage] = []
 
     @property
@@ -109,36 +103,8 @@ class DeckGridView:
         self._cell_px = int(cell_px)
         self.rebuild(self._items)
 
-    def set_primary_interaction(
-        self,
-        *,
-        primary_click_delay_ms: int,
-        on_item_double_click: Callable[[DeckItem], None] | None,
-    ) -> None:
-        self._cancel_deferred_primary()
-        self._primary_delay_ms = max(0, int(primary_click_delay_ms))
-        self._on_double = on_item_double_click
-
     def set_reorder_handler(self, cb: Callable[[int, int], None] | None) -> None:
         self._on_reorder = cb
-
-    def _cancel_deferred_primary(self) -> None:
-        if self._defer_after_id is not None:
-            try:
-                self._deck.winfo_toplevel().after_cancel(self._defer_after_id)
-            except Exception:
-                pass
-            self._defer_after_id = None
-
-    def _schedule_primary(self, item: DeckItem) -> None:
-        self._cancel_deferred_primary()
-        top = self._deck.winfo_toplevel()
-
-        def fire() -> None:
-            self._defer_after_id = None
-            self._on_primary(item)
-
-        self._defer_after_id = int(top.after(self._primary_delay_ms, fire))
 
     def _try_cell_icon(self, item: DeckItem) -> ctk.CTkImage | None:
         if not item.icon_path:
@@ -175,7 +141,6 @@ class DeckGridView:
             return
         w = ev.widget
         w.unbind("<B1-Motion>")
-        self._cancel_deferred_primary()
         self._dragging = True
         self._deck.grab_set()
         self._deck.bind("<B1-Motion>", self._on_drag_motion)
@@ -203,22 +168,9 @@ class DeckGridView:
             self._press = None
             self._dragging = False
 
-    def _handle_item_double(self, item: DeckItem) -> None:
-        self._cancel_deferred_primary()
-        self._suppress_next_primary = True
-        if self._on_double is not None:
-            self._on_double(item)
-
     def _keyboard_primary(self, item: DeckItem) -> None:
         """Primary action from keyboard (no mouse press/drag)."""
-        self._cancel_deferred_primary()
-        if self._suppress_next_primary:
-            self._suppress_next_primary = False
-            return
-        if self._primary_delay_ms > 0:
-            self._schedule_primary(item)
-        else:
-            self._on_primary(item)
+        self._on_primary(item)
 
     def _on_item_release(self, event: object, _idx: int, item: DeckItem) -> None:
         ev = event  # type: ignore[assignment]
@@ -226,21 +178,13 @@ class DeckGridView:
             ev.widget.unbind("<B1-Motion>")
         except Exception:
             pass
-        if self._suppress_next_primary:
-            self._suppress_next_primary = False
-            self._press = None
-            return
         if self._dragging:
             return
         if self._press is not None:
-            if self._primary_delay_ms > 0:
-                self._schedule_primary(item)
-            else:
-                self._on_primary(item)
+            self._on_primary(item)
         self._press = None
 
     def rebuild(self, items: list[DeckItem]) -> None:
-        self._cancel_deferred_primary()
         self._cell_image_refs.clear()
         self._items = list(items)
         for w in self._rows_host.winfo_children():
@@ -274,12 +218,7 @@ class DeckGridView:
                     if icon is not None:
                         btn_kw["image"] = icon
                         btn_kw["compound"] = "top"
-                    use_press_release = (
-                        self._on_reorder is not None
-                        or self._primary_delay_ms > 0
-                        or self._on_double is not None
-                    )
-                    if use_press_release:
+                    if self._on_reorder is not None:
                         b = ctk.CTkButton(
                             row_f,
                             text=label,
@@ -295,11 +234,6 @@ class DeckGridView:
                             "<ButtonRelease-1>",
                             lambda e, i=idx, t=it: self._on_item_release(e, i, t),
                         )
-                        if self._on_double is not None:
-                            b.bind(
-                                "<Double-Button-1>",
-                                lambda _e, t=it: self._handle_item_double(t),
-                            )
 
                         def _kbd_factory(t: DeckItem) -> Callable[[object], str]:
                             def _kbd(_e: object) -> str:

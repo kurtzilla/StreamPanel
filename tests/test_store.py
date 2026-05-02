@@ -206,7 +206,6 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s.deck_cell_px, store.DEFAULT_DECK_CELL_PX)
         self.assertFalse(s.deck_show_hidden_items)
         self.assertEqual(s.ui_scale, store.UI_SCALE_DEFAULT)
-        self.assertEqual(s.deck_primary_action, store.DECK_PRIMARY_CHANNELS)
         self.assertEqual(
             s.window_startup_placement, store.WINDOW_STARTUP_CENTER
         )
@@ -234,7 +233,6 @@ class StoreTests(unittest.TestCase):
             deck_cell_px=56,
             deck_show_hidden_items=True,
             ui_scale=1.25,
-            deck_primary_action=store.DECK_PRIMARY_LAUNCH,
             window_startup_placement=store.WINDOW_STARTUP_LAST_POSITION,
             panel_drag_animation=store.PANEL_DRAG_ANIM_SLIDE,
             panel_drawer_autoclose_sec=30,
@@ -248,7 +246,6 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s_out.deck_cell_px, 56)
         self.assertTrue(s_out.deck_show_hidden_items)
         self.assertEqual(s_out.ui_scale, 1.25)
-        self.assertEqual(s_out.deck_primary_action, store.DECK_PRIMARY_LAUNCH)
         self.assertEqual(
             s_out.window_startup_placement, store.WINDOW_STARTUP_LAST_POSITION
         )
@@ -319,14 +316,6 @@ class StoreTests(unittest.TestCase):
         )
         s_anim = store.load_app_settings(conn)
         self.assertEqual(s_anim.panel_drag_animation, store.PANEL_DRAG_ANIM_NONE)
-
-        store.app_kv_set(
-            conn,
-            "app_settings_v1",
-            '{"appearance_mode":"dark","deck_primary_action":"bogus"}',
-        )
-        s6 = store.load_app_settings(conn)
-        self.assertEqual(s6.deck_primary_action, store.DECK_PRIMARY_CHANNELS)
 
         store.app_kv_set(
             conn,
@@ -434,7 +423,6 @@ class StoreTests(unittest.TestCase):
             deck_cell_px=st_hide.deck_cell_px,
             deck_show_hidden_items=True,
             ui_scale=st_hide.ui_scale,
-            deck_primary_action=st_hide.deck_primary_action,
             window_startup_placement=st_hide.window_startup_placement,
             panel_drag_animation=st_hide.panel_drag_animation,
             panel_drawer_autoclose_sec=st_hide.panel_drawer_autoclose_sec,

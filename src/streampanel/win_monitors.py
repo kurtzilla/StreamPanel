@@ -17,6 +17,11 @@ class WorkMonitor:
     right: int
     bottom: int
     is_primary: bool = False
+    # Full monitor rect from Win32 ``rcMonitor``; when None, layout uses work rect.
+    mon_left: int | None = None
+    mon_top: int | None = None
+    mon_right: int | None = None
+    mon_bottom: int | None = None
 
     @property
     def width(self) -> int:
@@ -25,6 +30,112 @@ class WorkMonitor:
     @property
     def height(self) -> int:
         return max(0, self.bottom - self.top)
+
+
+def monitor_rect_for_layout(m: WorkMonitor) -> tuple[int, int, int, int]:
+    """Bounding rect for spatial strip minimap (physical screens, not work area)."""
+    if m.mon_left is None:
+        return (m.left, m.top, m.right, m.bottom)
+    return (m.mon_left, m.mon_top, m.mon_right, m.mon_bottom)
+
+
+def _separate_normalized_centers(
+    pts: list[tuple[float, float]],
+    *,
+    min_dist: float = 0.16,
+) -> list[tuple[float, float]]:
+    """Push overlapping minimap positions apart; coordinates stay in [0, 1]."""
+    out = list(pts)
+    n = len(out)
+    if n <= 1:
+        return out
+    for _ in range(32):
+        moved = False
+        for i in range(n):
+            for j in range(i + 1, n):
+                xi, yi = out[i]
+                xj, yj = out[j]
+                dx, dy = xj - xi, yj - yi
+                dist_sq = dx * dx + dy * dy
+                if dist_sq < 1e-12:
+                    dx, dy, dist = 0.01, 0.0, 0.01
+                else:
+                    dist = dist_sq**0.5
+                if dist >= min_dist:
+                    continue
+                push = (min_dist - dist) * 0.5
+                if dist < 1e-9:
+                    ux, uy = 1.0, 0.0
+                else:
+                    ux, uy = dx / dist, dy / dist
+                ni = (xi - ux * push, yi - uy * push)
+                nj = (xj + ux * push, yj + uy * push)
+                ni = (max(0.0, min(1.0, ni[0])), max(0.0, min(1.0, ni[1])))
+                nj = (max(0.0, min(1.0, nj[0])), max(0.0, min(1.0, nj[1])))
+                if abs(ni[0] - out[i][0]) > 1e-6 or abs(ni[1] - out[i][1]) > 1e-6:
+                    moved = True
+                if abs(nj[0] - out[j][0]) > 1e-6 or abs(nj[1] - out[j][1]) > 1e-6:
+                    moved = True
+                out[i], out[j] = ni, nj
+        if not moved:
+            break
+    return out
+
+
+def monitor_strip_layout_centers(monitors: list[WorkMonitor]) -> list[tuple[float, float]]:
+    """
+    Normalized ``(relx, rely)`` in ``[0, 1]`` for each monitor, same order as *monitors*.
+    Uses full monitor rects when present (see :func:`monitor_rect_for_layout`).
+    """
+    if not monitors:
+        return []
+    rects = [monitor_rect_for_layout(m) for m in monitors]
+    ml = min(r[0] for r in rects)
+    mt = min(r[1] for r in rects)
+    mr = max(r[2] for r in rects)
+    mb = max(r[3] for r in rects)
+    span_w = max(1, mr - ml)
+    span_h = max(1, mb - mt)
+    raw: list[tuple[float, float]] = []
+    for r in rects:
+        cx = (r[0] + r[2]) / 2.0
+        cy = (r[1] + r[3]) / 2.0
+        nx = (cx - ml) / span_w
+        ny = (cy - mt) / span_h
+        raw.append((max(0.0, min(1.0, nx)), max(0.0, min(1.0, ny))))
+    return _separate_normalized_centers(raw)
+
+
+def monitor_strip_host_wh(
+    monitors: list[WorkMonitor],
+    *,
+    strip_inner_height: int,
+) -> tuple[int, int]:
+    """Pixel size for the strip minimap host; aspect follows virtual monitor span."""
+    rects = [monitor_rect_for_layout(m) for m in monitors]
+    span_w = max(1, max(r[2] for r in rects) - min(r[0] for r in rects))
+    span_h = max(1, max(r[3] for r in rects) - min(r[1] for r in rects))
+    ar = span_w / span_h
+    hh = max(22, int(strip_inner_height))
+    hw = int(max(44, min(120, round(hh * ar))))
+    return hw, hh
+
+
+def monitor_strip_spatial_ui(
+    monitors: list[WorkMonitor],
+    *,
+    strip_inner_height: int = 26,
+) -> tuple[list[tuple[float, float]], tuple[int, int]] | None:
+    """
+    Centers and host size for a spatial display strip, or ``None`` for a single monitor.
+
+    ``strip_inner_height`` should match the chrome strip (e.g. ``STRIP_HEIGHT - 10``).
+    """
+    if len(monitors) <= 1:
+        return None
+    centers = monitor_strip_layout_centers(monitors)
+    wh = monitor_strip_host_wh(monitors, strip_inner_height=strip_inner_height)
+    return centers, wh
 
 
 def _sort_monitors(monitors: list[WorkMonitor]) -> list[WorkMonitor]:
@@ -183,15 +294,20 @@ def _list_work_monitors_win32() -> list[WorkMonitor]:
         mi.cbSize = ctypes.sizeof(MONITORINFO)
         if not user32.GetMonitorInfoW(h_monitor, ctypes.byref(mi)):
             return True
-        r = mi.rcWork
+        rw = mi.rcWork
+        rm = mi.rcMonitor
         primary = bool(mi.dwFlags & MONITORINFOF_PRIMARY)
         collected.append(
             WorkMonitor(
-                int(r.left),
-                int(r.top),
-                int(r.right),
-                int(r.bottom),
+                int(rw.left),
+                int(rw.top),
+                int(rw.right),
+                int(rw.bottom),
                 is_primary=primary,
+                mon_left=int(rm.left),
+                mon_top=int(rm.top),
+                mon_right=int(rm.right),
+                mon_bottom=int(rm.bottom),
             )
         )
         return True

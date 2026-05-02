@@ -64,5 +64,58 @@ class WinMonitorsTests(unittest.TestCase):
         self.assertEqual((ml, mt, mr, mb), (0, 0, 250, 60))
 
 
+class MonitorStripLayoutTests(unittest.TestCase):
+    def test_monitor_rect_for_layout_falls_back_to_work(self) -> None:
+        m = win_monitors.WorkMonitor(10, 20, 110, 220, is_primary=True)
+        self.assertEqual(win_monitors.monitor_rect_for_layout(m), (10, 20, 110, 220))
+
+    def test_monitor_rect_for_layout_uses_mon_rect(self) -> None:
+        m = win_monitors.WorkMonitor(
+            40,
+            40,
+            1040,
+            640,
+            is_primary=True,
+            mon_left=0,
+            mon_top=0,
+            mon_right=1080,
+            mon_bottom=720,
+        )
+        self.assertEqual(win_monitors.monitor_rect_for_layout(m), (0, 0, 1080, 720))
+
+    def test_layout_centers_two_horizontal(self) -> None:
+        m1 = win_monitors.WorkMonitor(0, 0, 800, 600, is_primary=True)
+        m2 = win_monitors.WorkMonitor(800, 0, 1600, 600, is_primary=False)
+        pts = win_monitors.monitor_strip_layout_centers([m1, m2])
+        self.assertEqual(len(pts), 2)
+        self.assertAlmostEqual(pts[0][0], 0.25, places=2)
+        self.assertAlmostEqual(pts[0][1], 0.5, places=2)
+        self.assertAlmostEqual(pts[1][0], 0.75, places=2)
+        self.assertAlmostEqual(pts[1][1], 0.5, places=2)
+
+    def test_layout_centers_two_vertical(self) -> None:
+        m1 = win_monitors.WorkMonitor(0, 0, 1920, 1080, is_primary=True)
+        m2 = win_monitors.WorkMonitor(0, 1080, 1920, 2160, is_primary=False)
+        pts = win_monitors.monitor_strip_layout_centers([m1, m2])
+        self.assertEqual(len(pts), 2)
+        self.assertAlmostEqual(pts[0][0], 0.5, places=2)
+        self.assertAlmostEqual(pts[0][1], 0.25, places=2)
+        self.assertAlmostEqual(pts[1][0], 0.5, places=2)
+        self.assertAlmostEqual(pts[1][1], 0.75, places=2)
+
+    def test_strip_spatial_ui_none_for_single(self) -> None:
+        m = win_monitors.WorkMonitor(0, 0, 800, 600, is_primary=True)
+        self.assertIsNone(win_monitors.monitor_strip_spatial_ui([m]))
+
+    def test_strip_spatial_ui_returns_centers_and_host(self) -> None:
+        m1 = win_monitors.WorkMonitor(0, 0, 800, 600, is_primary=True)
+        m2 = win_monitors.WorkMonitor(800, 0, 1600, 600, is_primary=False)
+        out = win_monitors.monitor_strip_spatial_ui([m1, m2], strip_inner_height=26)
+        self.assertIsNotNone(out)
+        centers, (hw, hh) = out
+        self.assertEqual(len(centers), 2)
+        self.assertGreater(hw, hh)
+
+
 if __name__ == "__main__":
     unittest.main()

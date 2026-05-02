@@ -52,4 +52,4 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 ## Status
 
-**Execution queue:** [`docs/plans/execution.md`](docs/plans/execution.md). **Next:** **`onboarding-docs`**. **`git-upstream`** done — fork and `upstream` remote in [`docs/developing.md`](docs/developing.md); canonical repo under [`pyproject.toml`](pyproject.toml) `[project.urls]`.
+**Execution queue:** [`docs/plans/execution.md`](docs/plans/execution.md). **`final-initial-pass`** done (audit notes in that file). **Next:** **`onboarding-docs`**. **`git-upstream`** done — fork and `upstream` remote in [`docs/developing.md`](docs/developing.md); canonical repo under [`pyproject.toml`](pyproject.toml) `[project.urls]`.

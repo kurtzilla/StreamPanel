@@ -85,6 +85,9 @@ If you cloned the canonical repository directly, `origin` may already be the can
 - [`window_chrome.py`](../src/streampanel/window_chrome.py) — borderless top strip, drag region, Pin / Settings / Add link / Close buttons.
 - [`win_overlay.py`](../src/streampanel/win_overlay.py) — Windows-only `WS_EX_TOOLWINDOW` overlay (no taskbar slot).
 - [`deck_grid.py`](../src/streampanel/deck_grid.py) — `DeckGridView`: cell rendering, `+` / `+ add` ghosts, optional extra row near max height.
+- [`themes.py`](../src/streampanel/themes.py) — palette presets (`THEME_IDS`), dialog backgrounds, `apply_theme` / `clamp_theme_id`.
+- [`panel_dnd.py`](../src/streampanel/panel_dnd.py) — optional drag-and-drop onto the main window (`install_panel_drop_handlers`; requires `tkinterdnd2`).
+- [`icon_image.py`](../src/streampanel/icon_image.py) — optional deck tile `CTkImage` from `icon_path` (PIL).
 - [`add_link_dialog.py`](../src/streampanel/add_link_dialog.py) — modal that writes a `.url` into the shortcuts folder.
 - [`item_editor.py`](../src/streampanel/item_editor.py) — modal for label override, notes, `confirm_launch`, hide-from-deck.
 - [`settings_dialog.py`](../src/streampanel/settings_dialog.py) — modal for appearance, shortcuts folder override, deck columns, show-hidden toggle.
@@ -99,6 +102,10 @@ Tests live under [`tests/`](../tests/) and are discovered by the `test_*.py` glo
 - [`test_panel_layout.py`](../tests/test_panel_layout.py) — height math and geometry clamping.
 - [`test_deck_grid.py`](../tests/test_deck_grid.py) — grid rendering helpers.
 - [`test_add_link.py`](../tests/test_add_link.py) — URL normalization, filename sanitization, write flow.
+- [`test_url_shortcut.py`](../tests/test_url_shortcut.py) — `.url` parse/write helpers, `normalize_url`.
+- [`test_shortcuts_folder.py`](../tests/test_shortcuts_folder.py) — `STREAMPANEL_DATA_DIR` and `user_data_dir`.
+- [`test_runtime_shell.py`](../tests/test_runtime_shell.py) — `open_path` / `ShellOpenError` (Windows `startfile` mocked where applicable).
+- [`test_panel_dnd.py`](../tests/test_panel_dnd.py) — DnD file list parsing (`paths_from_dnd_files`).
 
 When adding behaviour, prefer adding focused unit tests next to the existing module's test file rather than introducing new test infrastructure.
 
@@ -112,7 +119,7 @@ These mirror [`.cursor/rules/streampanel-core.md`](../.cursor/rules/streampanel-
 - New modal dialogs follow the pattern in [`settings_dialog.py`](../src/streampanel/settings_dialog.py), [`item_editor.py`](../src/streampanel/item_editor.py), and [`add_link_dialog.py`](../src/streampanel/add_link_dialog.py): `CTkToplevel`, `transient(parent)`, `grab_set()`, `themes.dialog_background()` for `fg_color`, brief `-topmost` flash for focus, and a `dismiss()` helper that releases the grab.
 - Errors that must reach the user use `_stub_dialog` from [`window_chrome.py`](../src/streampanel/window_chrome.py).
 - Where a module is intentionally Windows-only (`win_overlay.py`), guard with `sys.platform == "win32"` and degrade silently on other platforms.
-- Lint/format config lives in [`pyproject.toml`](../pyproject.toml). Do not duplicate package identity (name, version, deps) in prose elsewhere.
+- [`pyproject.toml`](../pyproject.toml) holds package metadata, dependencies, and setuptools package discovery. This repo does not yet commit a Ruff/Mypy/Black configuration; use local editor or CLI tools if you want them. Do not duplicate package identity (name, version, deps) in prose elsewhere.
 - General docs belong under [`docs/`](README.md) — `.cursor/` is reserved for Cursor IDE rules and Cursor-specific notes only ([`docs/cursor.md`](cursor.md)).
 
 ## Plans and the execution queue

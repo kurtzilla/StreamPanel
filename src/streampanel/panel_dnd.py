@@ -17,6 +17,35 @@ from streampanel.url_shortcut import (
 )
 from streampanel.window_chrome import _stub_dialog
 
+# tkinterdnd2 patches BaseWidget; Python 3.13's Tk subclasses Misc only (BaseWidget subclasses Misc),
+# so CTk/tk.Tk never see drop_target_register unless we mirror the hooks onto Misc.
+_DND_MISC_ATTRS = (
+    "_subst_format_dnd",
+    "_subst_format_str_dnd",
+    "_substitute_dnd",
+    "_dnd_bind",
+    "dnd_bind",
+    "drag_source_register",
+    "drag_source_unregister",
+    "drop_target_register",
+    "drop_target_unregister",
+    "platform_independent_types",
+    "platform_specific_types",
+    "get_dropfile_tempdir",
+    "set_dropfile_tempdir",
+)
+
+
+def _ensure_tkdnd_on_misc() -> None:
+    import tkinter as tk
+
+    if hasattr(tk.Misc, "drop_target_register"):
+        return
+    bw = tk.BaseWidget
+    for name in _DND_MISC_ATTRS:
+        if hasattr(bw, name):
+            setattr(tk.Misc, name, getattr(bw, name))
+
 
 def paths_from_dnd_files(data: str) -> list[Path]:
     s = data.strip()
@@ -69,6 +98,7 @@ def install_panel_drop_handlers(
     except ImportError:
         return False
 
+    _ensure_tkdnd_on_misc()
     TkinterDnD._require(root)
 
     def on_drop(event: object) -> None:

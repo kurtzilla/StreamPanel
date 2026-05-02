@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "StreamPanel",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streampanel",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      }
+    },
+    {
+      "name": "StreamPanel (pip install -e ., then run)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streampanel",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "preLaunchTask": "pip: editable install (StreamPanel)"
+    }
+  ]
+}

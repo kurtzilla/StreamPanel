@@ -122,13 +122,23 @@ def run() -> None:
     debounce_id: list[int | None] = [None]
 
     def screen_number_int() -> int:
-        sn = root.winfo_screennumber()
-        if isinstance(sn, int):
-            return sn
-        try:
-            return int(sn)
-        except (TypeError, ValueError):
-            return 0
+        # Tcl 9 / some Windows Tk builds omit winfo screennumber; Python 3.13 may lack the wrapper.
+        wsn = getattr(root, "winfo_screennumber", None)
+        if callable(wsn):
+            sn = wsn()
+            if isinstance(sn, int):
+                return sn
+            try:
+                return int(sn)
+            except (TypeError, ValueError):
+                pass
+        name = root.winfo_screen()
+        if isinstance(name, str) and "." in name:
+            try:
+                return int(name.rsplit(".", 1)[-1])
+            except ValueError:
+                pass
+        return 0
 
     def persist_now() -> None:
         c2 = store.connect()

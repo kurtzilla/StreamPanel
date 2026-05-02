@@ -149,7 +149,28 @@ def open_settings_dialog(
         outer,
         text="Show items hidden from deck on the grid",
         variable=show_hidden_var,
-    ).pack(anchor="w", pady=(0, 12))
+    ).pack(anchor="w", pady=(0, 8))
+
+    _primary_labels = ("Open Channels", "Launch immediately")
+    _primary_label_for: dict[str, str] = {
+        store.DECK_PRIMARY_CHANNELS: _primary_labels[0],
+        store.DECK_PRIMARY_LAUNCH: _primary_labels[1],
+    }
+    _primary_action_for = {_primary_labels[0]: store.DECK_PRIMARY_CHANNELS, _primary_labels[1]: store.DECK_PRIMARY_LAUNCH}
+
+    ctk.CTkLabel(outer, text="Primary deck click", anchor="w").pack(fill="x", pady=(0, 4))
+    ctk.CTkLabel(
+        outer,
+        text="Open Channels: single click opens this window (double-click launches). "
+        "Launch immediately: single click runs the shortcut without opening Channels.",
+        anchor="w",
+        justify="left",
+        wraplength=440,
+        text_color=("gray75", "gray70"),
+    ).pack(fill="x", pady=(0, 6))
+    primary_menu = ctk.CTkOptionMenu(outer, values=list(_primary_labels))
+    primary_menu.pack(fill="x", pady=(0, 12))
+    primary_menu.set(_primary_label_for.get(current.deck_primary_action, _primary_labels[0]))
 
     ctk.CTkLabel(outer, text="Data", anchor="w").pack(fill="x", pady=(0, 4))
     ctk.CTkLabel(
@@ -281,12 +302,16 @@ def open_settings_dialog(
         ui_scale = preset_by_label.get(scale_label, store.UI_SCALE_DEFAULT)
         ui_scale = store.clamp_ui_scale(ui_scale)
 
+        plab = primary_menu.get()
+        deck_primary_action = _primary_action_for.get(plab, store.DECK_PRIMARY_CHANNELS)
+
         settings = store.AppSettings(
             appearance_mode=appearance_mode,
             shortcuts_dir=shortcuts_dir,
             grid_cols=grid_cols,
             deck_show_hidden_items=bool(show_hidden_var.get()),
             ui_scale=ui_scale,
+            deck_primary_action=deck_primary_action,
         )
         c2 = store.connect()
         try:

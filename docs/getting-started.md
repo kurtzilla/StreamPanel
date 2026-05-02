@@ -25,6 +25,8 @@ On first launch, StreamPanel creates a per-user data folder and a SQLite databas
 
 On every start the panel auto-syncs from the shortcuts folder: any `.lnk` or `.url` file there becomes a deck item, and items whose source file disappears are dropped (`ALLOWED_SUFFIXES` and `sync_from_folder` in [`src/streampanel/store.py`](../src/streampanel/store.py)). The status text near the top of the panel shows the current count and the sync delta.
 
+Below the status line, **Filter deck** narrows which tiles are shown (case-insensitive substring on the display label, filename stem, or full source path). The filter is in-memory only: clearing the field restores the full deck, and sync or Settings Save reapplies the current filter text to the refreshed list.
+
 ## The toolbar
 
 The top strip ([`src/streampanel/window_chrome.py`](../src/streampanel/window_chrome.py)) replaces the native title bar. Left-to-right:
@@ -48,8 +50,9 @@ To add a Windows application or local file, drop a `.lnk` into the shortcuts fol
 
 ## Editing a deck item
 
-- Left-click a deck cell — opens the Channels window ([`src/streampanel/channels_view.py`](../src/streampanel/channels_view.py); lower pane later). That records a **`view`** event in `launch_events`. Click **Launch** there to open the shortcut with the OS default app (via [`runtime_shell.py`](../src/streampanel/runtime_shell.py)); a successful open records a **`launch`** event.
-- Drag a deck cell onto another tile — reorders shortcuts on the deck (persisted in the database). Use a short drag past the movement threshold so a normal click still opens Channels.
+- Left-click a deck cell — behaviour depends on **Primary deck click** in Settings (see below). The default (**Open Channels**) opens the Channels window ([`src/streampanel/channels_view.py`](../src/streampanel/channels_view.py)) after a short delay so a quick **double-click** can launch the shortcut immediately instead (same confirm rules as **Launch** in Channels). Opening Channels records a **`view`** event in `launch_events`. **Launch immediately** skips Channels and runs the shortcut with the OS default app (via [`runtime_shell.py`](../src/streampanel/runtime_shell.py) and [`item_launch.py`](../src/streampanel/item_launch.py)); a successful open records a **`launch`** event.
+- In Channels, the lower area shows **Notes** for the shortcut and **Recent activity** (recent views and launches from the database). After you press **Launch**, the activity list refreshes.
+- Drag a deck cell onto another tile — reorders shortcuts on the deck (persisted in the database). Use a short drag past the movement threshold so a normal click still runs the primary action. **Drag reorder is disabled while the filter text is non-empty** so indices stay aligned with the full deck order in the database.
 - Right-click a deck cell — opens the item editor ([`src/streampanel/item_editor.py`](../src/streampanel/item_editor.py)) with:
   - Display label (empty falls back to the source filename stem).
   - Notes (free-form text).
@@ -66,9 +69,12 @@ The Settings modal ([`src/streampanel/settings_dialog.py`](../src/streampanel/se
 - Shortcuts folder — leave empty for the default; otherwise pick an existing directory. Invalid or missing paths fall back to the default.
 - Deck columns — `GRID_COLS_MIN`..`GRID_COLS_MAX` (currently 2–8). Column count drives both grid layout and the panel's min/max height.
 - Show items hidden from deck on the grid — surfaces items flagged with hide-from-deck so you can edit them again.
+- Primary deck click — **Open Channels** (default) or **Launch immediately** (`deck_primary_action` in [`src/streampanel/store.py`](../src/streampanel/store.py)).
 - About / Diagnostics — read-only summary (version, Python, database and shortcuts paths, item counts) plus **Copy diagnostics to clipboard** for bug reports or support.
 
 Changes apply immediately on Save: appearance is re-applied, the deck rebuilds, and the panel resizes to fit the new column count.
+
+If a deck item has `icon_path` set in the database to an existing image file, the grid shows that image to the left of the label (optional; the app does not extract icons from `.lnk` files automatically in this version).
 
 ## Window behaviour
 

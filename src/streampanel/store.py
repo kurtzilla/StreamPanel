@@ -57,6 +57,12 @@ class SyncResult:
     removed_ids: tuple[int, ...]
 
 
+@dataclass(frozen=True)
+class LaunchEventRow:
+    opened_at: str
+    kind: str
+
+
 def connect(db_path: Path | None = None) -> sqlite3.Connection:
     path = db_path or default_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -128,6 +134,10 @@ _K_APP_SETTINGS = "app_settings_v1"
 
 APPEARANCE_MODES: tuple[str, ...] = ("dark", "light", "system")
 _APPEARANCE_MODES = frozenset(APPEARANCE_MODES)
+DECK_PRIMARY_CHANNELS = "channels"
+DECK_PRIMARY_LAUNCH = "launch"
+DECK_PRIMARY_ACTIONS: tuple[str, ...] = (DECK_PRIMARY_CHANNELS, DECK_PRIMARY_LAUNCH)
+_DECK_PRIMARY_ACTIONS = frozenset(DECK_PRIMARY_ACTIONS)
 GRID_COLS_MIN = 2
 GRID_COLS_MAX = 8
 
@@ -218,6 +228,7 @@ class AppSettings:
     grid_cols: int
     deck_show_hidden_items: bool
     ui_scale: float
+    deck_primary_action: str
 
 
 def default_app_settings() -> AppSettings:
@@ -227,6 +238,7 @@ def default_app_settings() -> AppSettings:
         grid_cols=DEFAULT_GRID_COLS,
         deck_show_hidden_items=False,
         ui_scale=UI_SCALE_DEFAULT,
+        deck_primary_action=DECK_PRIMARY_CHANNELS,
     )
 
 
@@ -292,12 +304,18 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
         except (TypeError, ValueError, OverflowError):
             ui_scale = base.ui_scale
 
+    deck_primary_action = base.deck_primary_action
+    raw_dpa = data.get("deck_primary_action")
+    if isinstance(raw_dpa, str) and raw_dpa in _DECK_PRIMARY_ACTIONS:
+        deck_primary_action = raw_dpa
+
     return AppSettings(
         appearance_mode=appearance_mode,
         shortcuts_dir=shortcuts_dir,
         grid_cols=grid_cols,
         deck_show_hidden_items=deck_show_hidden_items,
         ui_scale=ui_scale,
+        deck_primary_action=deck_primary_action,
     )
 
 
@@ -324,6 +342,7 @@ def save_app_settings(conn: sqlite3.Connection, settings: AppSettings) -> None:
         "grid_cols": settings.grid_cols,
         "deck_show_hidden_items": settings.deck_show_hidden_items,
         "ui_scale": settings.ui_scale,
+        "deck_primary_action": settings.deck_primary_action,
     }
     app_kv_set(
         conn,
@@ -559,6 +578,29 @@ def reorder_items(conn: sqlite3.Connection, ordered_ids: Iterable[int]) -> None:
             "UPDATE deck_items SET sort_order = ? WHERE id = ?", (i, item_id)
         )
     conn.commit()
+
+
+def list_launch_events_for_item(
+    conn: sqlite3.Connection, item_id: int, *, limit: int = 20
+) -> list[LaunchEventRow]:
+    """Recent ``launch_events`` for *item_id*, newest first."""
+    lim = max(1, min(100, int(limit)))
+    cur = conn.cursor()
+    rows = cur.execute(
+        """
+        SELECT opened_at, kind FROM launch_events
+        WHERE item_id = ?
+        ORDER BY opened_at DESC, id DESC
+        LIMIT ?
+        """,
+        (item_id, lim),
+    ).fetchall()
+    out: list[LaunchEventRow] = []
+    for row in rows:
+        out.append(
+            LaunchEventRow(opened_at=str(row["opened_at"]), kind=str(row["kind"]))
+        )
+    return out
 
 
 def parse_flags(item: DeckItem) -> dict[str, Any]:

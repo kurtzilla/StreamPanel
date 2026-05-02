@@ -160,6 +160,7 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s.grid_cols, DEFAULT_GRID_COLS)
         self.assertFalse(s.deck_show_hidden_items)
         self.assertEqual(s.ui_scale, store.UI_SCALE_DEFAULT)
+        self.assertEqual(s.deck_primary_action, store.DECK_PRIMARY_CHANNELS)
 
     def test_app_settings_round_trip(self) -> None:
         conn = store.connect(self.db)
@@ -172,6 +173,7 @@ class StoreTests(unittest.TestCase):
             grid_cols=3,
             deck_show_hidden_items=True,
             ui_scale=1.25,
+            deck_primary_action=store.DECK_PRIMARY_LAUNCH,
         )
         store.save_app_settings(conn, s_in)
         s_out = store.load_app_settings(conn)
@@ -180,6 +182,7 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s_out.grid_cols, 3)
         self.assertTrue(s_out.deck_show_hidden_items)
         self.assertEqual(s_out.ui_scale, 1.25)
+        self.assertEqual(s_out.deck_primary_action, store.DECK_PRIMARY_LAUNCH)
 
     def test_app_settings_corrupt_json_uses_defaults(self) -> None:
         conn = store.connect(self.db)
@@ -238,6 +241,14 @@ class StoreTests(unittest.TestCase):
         s5 = store.load_app_settings(conn)
         self.assertEqual(s5.ui_scale, store.UI_SCALE_DEFAULT)
 
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
+            '{"appearance_mode":"dark","deck_primary_action":"bogus"}',
+        )
+        s6 = store.load_app_settings(conn)
+        self.assertEqual(s6.deck_primary_action, store.DECK_PRIMARY_CHANNELS)
+
     def test_export_db_to_file(self) -> None:
         conn = store.connect(self.db)
         self.addCleanup(conn.close)
@@ -281,6 +292,21 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(row["source_path"], r"C:\x\a.url")
         self.assertEqual(row["kind"], "view")
 
+    def test_list_launch_events_for_item_order_and_limit(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        store.record_item_open(conn, item_id=7, source_path=r"C:\a.url", kind="view")
+        store.record_item_open(conn, item_id=7, source_path=r"C:\a.url", kind="launch")
+        store.record_item_open(conn, item_id=7, source_path=r"C:\a.url", kind="view")
+        store.record_item_open(conn, item_id=8, source_path=r"C:\b.url", kind="view")
+        ev = store.list_launch_events_for_item(conn, 7, limit=2)
+        self.assertEqual(len(ev), 2)
+        self.assertEqual(ev[0].kind, "view")
+        self.assertEqual(ev[1].kind, "launch")
+        ev_all = store.list_launch_events_for_item(conn, 7, limit=20)
+        self.assertEqual(len(ev_all), 3)
+        self.assertEqual(store.list_launch_events_for_item(conn, 99, limit=5), [])
+
     def test_list_deck_items_respects_hide_flag(self) -> None:
         conn = store.connect(self.db)
         self.addCleanup(conn.close)
@@ -303,6 +329,7 @@ class StoreTests(unittest.TestCase):
             grid_cols=st_hide.grid_cols,
             deck_show_hidden_items=True,
             ui_scale=st_hide.ui_scale,
+            deck_primary_action=st_hide.deck_primary_action,
         )
         all_vis = store.list_deck_items(conn, st_show)
         self.assertEqual(len(all_vis), 2)

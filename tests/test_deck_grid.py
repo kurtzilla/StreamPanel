@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from streampanel.deck_grid import item_display_label
+from streampanel.deck_grid import item_display_label, item_matches_search
 from streampanel.store import DeckItem
 
 
@@ -47,6 +47,15 @@ class DeckGridLabelTests(unittest.TestCase):
         out = item_display_label(it, max_len=10)
         self.assertEqual(len(out), 10)
         self.assertTrue(out.endswith("…"))
+
+    def test_item_matches_search(self) -> None:
+        it = _item(source_path=str(Path("C:/games/Foo.url")))
+        self.assertTrue(item_matches_search(it, ""))
+        self.assertTrue(item_matches_search(it, "foo"))
+        self.assertTrue(item_matches_search(it, "Foo"))
+        self.assertTrue(item_matches_search(it, "games"))
+        self.assertFalse(item_matches_search(it, "zzz"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,8 +9,9 @@ import customtkinter as ctk
 from streampanel import store
 from streampanel.add_link_dialog import open_add_link_dialog
 from streampanel.channels_view import open_channels_for_item
-from streampanel.deck_grid import DeckGridView
+from streampanel.deck_grid import DeckGridView, item_matches_search
 from streampanel.item_editor import open_item_editor
+from streampanel.item_launch import try_launch_deck_item
 from streampanel.settings_dialog import open_settings_dialog
 from streampanel.panel_layout import (
     MIN_PANEL_WIDTH,
@@ -71,7 +72,8 @@ def run() -> None:
     app_settings_ref: list[store.AppSettings] = [app_settings]
 
     items_ref: list[list[store.DeckItem]] = [visible]
-    n_ref = [len(items_ref[0])]
+    search_ref: list[str] = [""]
+    n_ref = [0]
     subtitle = _sync_subtitle(
         len(all_items),
         _count_hidden(all_items, app_settings),
@@ -80,7 +82,7 @@ def run() -> None:
     )
 
     shell_state: dict[str, bool] = {"top": shell.always_on_top}
-    min_h = min_panel_height(n_ref[0], grid_cols_ref[0])
+    min_h = min_panel_height(len(visible), grid_cols_ref[0])
 
     if (
         shell.w is not None
@@ -168,6 +170,34 @@ def run() -> None:
 
     subtitle_lbl_holder: list[ctk.CTkLabel | None] = [None]
 
+    def on_deck_double_click(it: store.DeckItem) -> None:
+        try_launch_deck_item(root, it)
+
+    def apply_deck_filter() -> None:
+        """Rebuild grid from ``items_ref`` and ``search_ref``; updates ``n_ref`` for layout."""
+        dg = deck_grid_holder[0]
+        if dg is None:
+            return
+        st = app_settings_ref[0]
+        q = search_ref[0]
+        shown = [it for it in items_ref[0] if item_matches_search(it, q)]
+        n_ref[0] = len(shown)
+        delay = (
+            350 if st.deck_primary_action == store.DECK_PRIMARY_CHANNELS else 0
+        )
+        double_cb = (
+            on_deck_double_click
+            if st.deck_primary_action == store.DECK_PRIMARY_CHANNELS
+            else None
+        )
+        dg.set_primary_interaction(
+            primary_click_delay_ms=delay,
+            on_item_double_click=double_cb,
+        )
+        dg.set_reorder_handler(on_deck_reorder if not q.strip() else None)
+        dg.rebuild(shown)
+        flush_layout_and_persist()
+
     def reload_deck() -> None:
         dg = deck_grid_holder[0]
         lbl = subtitle_lbl_holder[0]
@@ -179,10 +209,8 @@ def run() -> None:
             sy = store.sync_from_folder(c, shortcuts_ref[0])
             all_items = store.list_items(c)
             items_ref[0] = store.list_deck_items(c, st)
-            n_ref[0] = len(items_ref[0])
         finally:
             c.close()
-        dg.rebuild(items_ref[0])
         lbl.configure(
             text=_sync_subtitle(
                 len(all_items),
@@ -191,7 +219,7 @@ def run() -> None:
                 shortcuts_ref[0],
             )
         )
-        flush_layout_and_persist()
+        apply_deck_filter()
 
     def on_add_link() -> None:
         open_add_link_dialog(root, shortcuts_dir=shortcuts_ref[0], on_created=reload_deck)
@@ -216,6 +244,10 @@ def run() -> None:
         open_settings_dialog(root, on_saved=on_applied)
 
     def on_item_primary(it: store.DeckItem) -> None:
+        st = app_settings_ref[0]
+        if st.deck_primary_action == store.DECK_PRIMARY_LAUNCH:
+            try_launch_deck_item(root, it)
+            return
         open_channels_for_item(root, it)
         c = store.connect()
         try:
@@ -227,6 +259,8 @@ def run() -> None:
         open_item_editor(root, it.id, on_saved=reload_deck)
 
     def on_deck_reorder(from_idx: int, to_idx: int) -> None:
+        if search_ref[0].strip():
+            return
         vis = list(items_ref[0])
         ids = [it.id for it in vis]
         moved = ids.pop(from_idx)
@@ -271,6 +305,24 @@ def run() -> None:
     subtitle_lbl.pack(fill="x", pady=(0, 8))
     subtitle_lbl_holder[0] = subtitle_lbl
 
+    search_row = ctk.CTkFrame(inner, fg_color="transparent")
+    search_row.pack(fill="x", pady=(0, 8))
+    search_row.grid_columnconfigure(1, weight=1)
+    ctk.CTkLabel(search_row, text="Filter deck", anchor="w").grid(
+        row=0, column=0, padx=(0, 8), sticky="w"
+    )
+    search_entry = ctk.CTkEntry(
+        search_row,
+        placeholder_text="Substring matches label or path…",
+    )
+    search_entry.grid(row=0, column=1, sticky="ew")
+
+    def on_search_change(_event: object | None = None) -> None:
+        search_ref[0] = search_entry.get()
+        apply_deck_filter()
+
+    search_entry.bind("<KeyRelease>", on_search_change)
+
     deck_grid_holder[0] = DeckGridView(
         inner,
         cols=grid_cols_ref[0],
@@ -278,8 +330,18 @@ def run() -> None:
         on_item_edit=on_item_edit,
         on_add=on_add_link,
         on_reorder=on_deck_reorder,
+        primary_click_delay_ms=(
+            350
+            if app_settings.deck_primary_action == store.DECK_PRIMARY_CHANNELS
+            else 0
+        ),
+        on_item_double_click=(
+            on_deck_double_click
+            if app_settings.deck_primary_action == store.DECK_PRIMARY_CHANNELS
+            else None
+        ),
     )
-    deck_grid_holder[0].rebuild(items_ref[0])
+    apply_deck_filter()
     deck_grid_holder[0].widget.pack(fill="both", expand=True)
 
     def on_configure(event: object) -> None:

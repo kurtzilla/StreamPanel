@@ -5,6 +5,7 @@ from __future__ import annotations
 import customtkinter as ctk
 
 from streampanel import store
+from streampanel.add_link_dialog import open_add_link_dialog
 from streampanel.deck_grid import DeckGridView
 from streampanel.item_editor import open_item_editor
 from streampanel.panel_layout import (
@@ -15,7 +16,7 @@ from streampanel.panel_layout import (
 )
 from streampanel.shortcuts_folder import default_shortcuts_dir
 from streampanel.win_overlay import apply_tool_window_overlay
-from streampanel.window_chrome import _stub_dialog, apply_borderless_chrome
+from streampanel.window_chrome import apply_borderless_chrome
 
 
 def _sync_subtitle(n: int, sync: store.SyncResult, shortcuts: object) -> str:
@@ -93,38 +94,9 @@ def run() -> None:
         shell_state["top"] = v
         persist_now()
 
-    def on_add_link() -> None:
-        _stub_dialog(root, "Add link", "Add-link dialog comes in add-link-ux.")
-
     def on_close() -> None:
         persist_now()
         root.destroy()
-
-    body = apply_borderless_chrome(
-        root,
-        always_on_top=shell_state["top"],
-        on_pin_toggled=on_pin_toggled,
-        on_add_link=on_add_link,
-        on_close=on_close,
-    )
-
-    inner = ctk.CTkFrame(body, fg_color="transparent")
-    inner.pack(expand=True, fill="both", padx=20, pady=16)
-
-    ctk.CTkLabel(
-        inner,
-        text="Status",
-        font=ctk.CTkFont(size=16, weight="bold"),
-        anchor="w",
-    ).pack(fill="x", pady=(0, 6))
-    subtitle_lbl = ctk.CTkLabel(
-        inner,
-        text=subtitle,
-        wraplength=430,
-        justify="left",
-        anchor="w",
-    )
-    subtitle_lbl.pack(fill="x", pady=(0, 8))
 
     deck_grid_holder: list[DeckGridView | None] = [None]
 
@@ -159,9 +131,12 @@ def run() -> None:
             dg.sync_extra_row(root.winfo_height(), n_ref[0])
         persist_now()
 
-    def reload_after_editor_save() -> None:
+    subtitle_lbl_holder: list[ctk.CTkLabel | None] = [None]
+
+    def reload_deck() -> None:
         dg = deck_grid_holder[0]
-        if dg is None:
+        lbl = subtitle_lbl_holder[0]
+        if dg is None or lbl is None:
             return
         c = store.connect()
         try:
@@ -171,11 +146,41 @@ def run() -> None:
         finally:
             c.close()
         dg.rebuild(items_ref[0])
-        subtitle_lbl.configure(text=_sync_subtitle(n_ref[0], sy, shortcuts))
+        lbl.configure(text=_sync_subtitle(n_ref[0], sy, shortcuts))
         flush_layout_and_persist()
 
+    def on_add_link() -> None:
+        open_add_link_dialog(root, shortcuts_dir=shortcuts, on_created=reload_deck)
+
     def on_item(it: store.DeckItem) -> None:
-        open_item_editor(root, it.id, on_saved=reload_after_editor_save)
+        open_item_editor(root, it.id, on_saved=reload_deck)
+
+    body = apply_borderless_chrome(
+        root,
+        always_on_top=shell_state["top"],
+        on_pin_toggled=on_pin_toggled,
+        on_add_link=on_add_link,
+        on_close=on_close,
+    )
+
+    inner = ctk.CTkFrame(body, fg_color="transparent")
+    inner.pack(expand=True, fill="both", padx=20, pady=16)
+
+    ctk.CTkLabel(
+        inner,
+        text="Status",
+        font=ctk.CTkFont(size=16, weight="bold"),
+        anchor="w",
+    ).pack(fill="x", pady=(0, 6))
+    subtitle_lbl = ctk.CTkLabel(
+        inner,
+        text=subtitle,
+        wraplength=430,
+        justify="left",
+        anchor="w",
+    )
+    subtitle_lbl.pack(fill="x", pady=(0, 8))
+    subtitle_lbl_holder[0] = subtitle_lbl
 
     deck_grid_holder[0] = DeckGridView(
         inner,

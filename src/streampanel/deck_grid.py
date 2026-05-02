@@ -32,17 +32,6 @@ def item_display_label(item: DeckItem, *, max_len: int = 22) -> str:
     return s[: max_len - 1] + "…"
 
 
-def item_matches_search(item: DeckItem, query: str) -> bool:
-    """Case-insensitive match on display label, filename stem, or full source path."""
-    q = query.strip().lower()
-    if not q:
-        return True
-    label = item_display_label(item, max_len=999).lower()
-    stem = Path(item.source_path).stem.lower()
-    path_l = item.source_path.lower()
-    return q in label or q in stem or q in path_l
-
-
 class DeckGridView:
     """Renders deck items in a fixed column count; ``+`` ghosts only in the last partial row."""
 

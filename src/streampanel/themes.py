@@ -1,4 +1,4 @@
-"""Low-chroma panel tints: shell, strip, deck, dialogs. Kept subtle so the UI stays behind the player."""
+"""Panel themes: shell, strip, deck, dialogs. Each theme fixes its own light/dark appearance."""
 
 from __future__ import annotations
 
@@ -25,20 +25,7 @@ class ThemePalette:
     drag_hint_text: tuple[str, str]
 
 
-@dataclass(frozen=True)
-class ThemeSpec:
-    dark: ThemePalette
-    light: ThemePalette
-
-
-def _spec(
-    dark: ThemePalette,
-    light: ThemePalette,
-) -> ThemeSpec:
-    return ThemeSpec(dark=dark, light=light)
-
-
-# Dark palettes: small hue bias, similar luminance to baseline charcoal.
+# --- Dark bases (existing hues) ---
 _CHARCOAL_D = ThemePalette(
     shell_bg="#1e1e1e",
     strip_bg="#252526",
@@ -52,20 +39,6 @@ _CHARCOAL_D = ThemePalette(
     dialog_bg="#1e1e1e",
     drag_hint_text=("gray70", "gray65"),
 )
-_CHARCOAL_L = ThemePalette(
-    shell_bg="#f4f4f4",
-    strip_bg="#ececec",
-    strip_button_hover="#dadada",
-    deck_cell="#e2e2e2",
-    deck_cell_hover="#d6d6d6",
-    ghost_cell="#ebebeb",
-    ghost_cell_hover="#dedede",
-    close_fg="#a85a5a",
-    close_hover="#b86a6a",
-    dialog_bg="#f4f4f4",
-    drag_hint_text=("gray35", "gray40"),
-)
-
 _OCEAN_D = ThemePalette(
     shell_bg="#1c1e22",
     strip_bg="#23262c",
@@ -79,20 +52,6 @@ _OCEAN_D = ThemePalette(
     dialog_bg="#1c1e22",
     drag_hint_text=("gray70", "gray65"),
 )
-_OCEAN_L = ThemePalette(
-    shell_bg="#f2f3f5",
-    strip_bg="#e9ebef",
-    strip_button_hover="#d8dce2",
-    deck_cell="#dfe2e8",
-    deck_cell_hover="#d2d6de",
-    ghost_cell="#e8eaee",
-    ghost_cell_hover="#dce0e6",
-    close_fg="#a06060",
-    close_hover="#b07070",
-    dialog_bg="#f2f3f5",
-    drag_hint_text=("gray35", "gray40"),
-)
-
 _FOREST_D = ThemePalette(
     shell_bg="#1c201e",
     strip_bg="#252925",
@@ -106,20 +65,6 @@ _FOREST_D = ThemePalette(
     dialog_bg="#1c201e",
     drag_hint_text=("gray70", "gray65"),
 )
-_FOREST_L = ThemePalette(
-    shell_bg="#f2f4f3",
-    strip_bg="#e9ecea",
-    strip_button_hover="#d8deda",
-    deck_cell="#dfe5e1",
-    deck_cell_hover="#d2d9d4",
-    ghost_cell="#e8edea",
-    ghost_cell_hover="#dce3de",
-    close_fg="#9f6060",
-    close_hover="#af7070",
-    dialog_bg="#f2f4f3",
-    drag_hint_text=("gray35", "gray40"),
-)
-
 _EMBER_D = ThemePalette(
     shell_bg="#201e1c",
     strip_bg="#2a2624",
@@ -132,6 +77,86 @@ _EMBER_D = ThemePalette(
     close_hover="#9c4a42",
     dialog_bg="#201e1c",
     drag_hint_text=("gray70", "gray65"),
+)
+_LAVENDER_D = ThemePalette(
+    shell_bg="#1e1c22",
+    strip_bg="#26242b",
+    strip_button_hover="#38353e",
+    deck_cell="#343038",
+    deck_cell_hover="#403c45",
+    ghost_cell="#29262c",
+    ghost_cell_hover="#373440",
+    close_fg="#844868",
+    close_hover="#955278",
+    dialog_bg="#1e1c22",
+    drag_hint_text=("gray70", "gray65"),
+)
+_SLATE_D = ThemePalette(
+    shell_bg="#1c1f24",
+    strip_bg="#24282e",
+    strip_button_hover="#353a42",
+    deck_cell="#30353c",
+    deck_cell_hover="#3d424b",
+    ghost_cell="#262a30",
+    ghost_cell_hover="#363b44",
+    close_fg="#804848",
+    close_hover="#915252",
+    dialog_bg="#1c1f24",
+    drag_hint_text=("gray70", "gray65"),
+)
+_MOCHA_D = ThemePalette(
+    shell_bg="#261f1b",
+    strip_bg="#322a25",
+    strip_button_hover="#443a32",
+    deck_cell="#3d342e",
+    deck_cell_hover="#4c4139",
+    ghost_cell="#2d2520",
+    ghost_cell_hover="#3a322c",
+    close_fg="#8b4a38",
+    close_hover="#9c5844",
+    dialog_bg="#261f1b",
+    drag_hint_text=("gray70", "gray65"),
+)
+_MONOKAI_D = ThemePalette(
+    shell_bg="#272822",
+    strip_bg="#3e3d32",
+    strip_button_hover="#49483e",
+    deck_cell="#3e3d32",
+    deck_cell_hover="#49483e",
+    ghost_cell="#2f302b",
+    ghost_cell_hover="#3d3c38",
+    close_fg="#f92672",
+    close_hover="#fd5e9a",
+    dialog_bg="#272822",
+    drag_hint_text=("#75715e", "#75715e"),
+)
+
+# --- Light (reuse prior light variants) ---
+_CHARCOAL_L = ThemePalette(
+    shell_bg="#f4f4f4",
+    strip_bg="#ececec",
+    strip_button_hover="#dadada",
+    deck_cell="#e2e2e2",
+    deck_cell_hover="#d6d6d6",
+    ghost_cell="#ebebeb",
+    ghost_cell_hover="#dedede",
+    close_fg="#a85a5a",
+    close_hover="#b86a6a",
+    dialog_bg="#f4f4f4",
+    drag_hint_text=("gray35", "gray40"),
+)
+_OCEAN_L = ThemePalette(
+    shell_bg="#f2f3f5",
+    strip_bg="#e9ebef",
+    strip_button_hover="#d8dce2",
+    deck_cell="#dfe2e8",
+    deck_cell_hover="#d2d6de",
+    ghost_cell="#e8eaee",
+    ghost_cell_hover="#dce0e6",
+    close_fg="#a06060",
+    close_hover="#b07070",
+    dialog_bg="#f2f3f5",
+    drag_hint_text=("gray35", "gray40"),
 )
 _EMBER_L = ThemePalette(
     shell_bg="#f5f3f2",
@@ -147,81 +172,50 @@ _EMBER_L = ThemePalette(
     drag_hint_text=("gray35", "gray40"),
 )
 
-_LAVENDER_D = ThemePalette(
-    shell_bg="#1e1c22",
-    strip_bg="#26242b",
-    strip_button_hover="#38353e",
-    deck_cell="#343038",
-    deck_cell_hover="#403c45",
-    ghost_cell="#29262c",
-    ghost_cell_hover="#373440",
-    close_fg="#844868",
-    close_hover="#955278",
-    dialog_bg="#1e1c22",
-    drag_hint_text=("gray70", "gray65"),
-)
-_LAVENDER_L = ThemePalette(
-    shell_bg="#f3f2f5",
-    strip_bg="#eae8ee",
-    strip_button_hover="#dad7e0",
-    deck_cell="#e0dde4",
-    deck_cell_hover="#d3d0d8",
-    ghost_cell="#e9e6ed",
-    ghost_cell_hover="#dcd9e2",
-    close_fg="#9a6090",
-    close_hover="#aa70a0",
-    dialog_bg="#f3f2f5",
-    drag_hint_text=("gray35", "gray40"),
-)
-
-_SLATE_D = ThemePalette(
-    shell_bg="#1c1f24",
-    strip_bg="#24282e",
-    strip_button_hover="#353a42",
-    deck_cell="#30353c",
-    deck_cell_hover="#3d424b",
-    ghost_cell="#262a30",
-    ghost_cell_hover="#363b44",
-    close_fg="#804848",
-    close_hover="#915252",
-    dialog_bg="#1c1f24",
-    drag_hint_text=("gray70", "gray65"),
-)
-_SLATE_L = ThemePalette(
-    shell_bg="#f2f3f6",
-    strip_bg="#e9ebf0",
-    strip_button_hover="#d8dce3",
-    deck_cell="#dfe3ea",
-    deck_cell_hover="#d2d7e0",
-    ghost_cell="#e8ebf1",
-    ghost_cell_hover="#dbdfe6",
-    close_fg="#9d6060",
-    close_hover="#ad7070",
-    dialog_bg="#f2f3f6",
-    drag_hint_text=("gray35", "gray40"),
-)
-
-_THEME_SPECS: dict[str, ThemeSpec] = {
-    "charcoal": _spec(_CHARCOAL_D, _CHARCOAL_L),
-    "ocean": _spec(_OCEAN_D, _OCEAN_L),
-    "forest": _spec(_FOREST_D, _FOREST_L),
-    "ember": _spec(_EMBER_D, _EMBER_L),
-    "lavender": _spec(_LAVENDER_D, _LAVENDER_L),
-    "slate": _spec(_SLATE_D, _SLATE_L),
+_THEME_PALETTES: dict[str, ThemePalette] = {
+    "charcoal": _CHARCOAL_D,
+    "ocean": _OCEAN_D,
+    "forest": _FOREST_D,
+    "ember": _EMBER_D,
+    "lavender": _LAVENDER_D,
+    "slate": _SLATE_D,
+    "mocha": _MOCHA_D,
+    "monokai": _MONOKAI_D,
+    "snow": _CHARCOAL_L,
+    "mist": _OCEAN_L,
+    "sand": _EMBER_L,
 }
 
-THEME_IDS: tuple[str, ...] = tuple(_THEME_SPECS.keys())
+THEME_APPEARANCE: dict[str, str] = {
+    "charcoal": "dark",
+    "ocean": "dark",
+    "forest": "dark",
+    "ember": "dark",
+    "lavender": "dark",
+    "slate": "dark",
+    "mocha": "dark",
+    "monokai": "dark",
+    "snow": "light",
+    "mist": "light",
+    "sand": "light",
+}
+
+THEME_IDS: tuple[str, ...] = tuple(_THEME_PALETTES.keys())
 _THEME_IDS_SET = frozenset(THEME_IDS)
 
 THEME_LABELS: dict[str, str] = {
     "charcoal": "Charcoal",
-    "ocean": "Cool gray (slight blue)",
-    "forest": "Cool gray (slight green)",
-    "ember": "Warm gray",
-    "lavender": "Soft gray (slight violet)",
-    "slate": "Blue-gray",
+    "ocean": "Ocean",
+    "forest": "Forest",
+    "ember": "Ember",
+    "lavender": "Lavender",
+    "slate": "Slate",
+    "mocha": "Mocha",
+    "monokai": "Monokai",
+    "snow": "Snow",
+    "mist": "Mist",
+    "sand": "Sand",
 }
-
 
 _active: ThemePalette = _CHARCOAL_D
 _active_id: str = "charcoal"
@@ -237,27 +231,26 @@ def clamp_theme_id(raw: str | None) -> str:
     return default_theme_id()
 
 
-def _effective_appearance(appearance_mode: str) -> str:
-    if appearance_mode == "light":
-        return "light"
-    if appearance_mode == "dark":
-        return "dark"
-    g = str(ctk.get_appearance_mode()).lower()
-    return "light" if g == "light" else "dark"
-
-
-def resolve_palette(theme_id: str, appearance_mode: str) -> ThemePalette:
+def theme_appearance(theme_id: str) -> str:
     tid = clamp_theme_id(theme_id)
-    spec = _THEME_SPECS[tid]
-    return spec.light if _effective_appearance(appearance_mode) == "light" else spec.dark
+    return THEME_APPEARANCE.get(tid, "dark")
 
 
-def apply_theme(theme_id: str, appearance_mode: str) -> None:
-    """Set global CTk widget theme (once) and cache the resolved palette for widgets."""
+def palette_for(theme_id: str) -> ThemePalette:
+    return _THEME_PALETTES[clamp_theme_id(theme_id)]
+
+
+def resolve_palette(theme_id: str, appearance_mode: str | None = None) -> ThemePalette:
+    """Resolve palette for ``theme_id``. ``appearance_mode`` is ignored (each theme is fixed)."""
+    return palette_for(theme_id)
+
+
+def apply_theme(theme_id: str, appearance_mode: str | None = None) -> None:
+    """Set global CTk widget theme (once) and cache the palette for ``theme_id``."""
     global _active, _active_id
     ctk.set_default_color_theme(_CTK_WIDGET_THEME)
     _active_id = clamp_theme_id(theme_id)
-    _active = resolve_palette(_active_id, appearance_mode)
+    _active = palette_for(_active_id)
 
 
 def current_palette() -> ThemePalette:

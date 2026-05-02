@@ -29,10 +29,9 @@ On every start the panel auto-syncs from the shortcuts folder: any `.lnk` or `.u
 
 ## The toolbar
 
-The top strip ([`src/streampanel/window_chrome.py`](../src/streampanel/window_chrome.py)) replaces the native title bar. Left-to-right:
+The top strip ([`src/streampanel/window_chrome.py`](../src/streampanel/window_chrome.py)) replaces the native title bar. Left: move icon and **StreamPanel** title (and the empty strip area) are the drag surface — a ghost outline follows the pointer until you release; the window then snaps, fades in, or slides in depending on **Panel drag animation** in Settings. Right: display picker (when you have more than one monitor), a **gear** button for Settings (hover shows “Settings”), and **Close**.
 
-- Drag region — click-and-drag on the strip text to move the window along the top of the display (multi-monitor aware).
-- Pin on / Pin off — toggles always-on-top. The state is persisted across sessions.
+- **Always on top** — checkbox in Settings (persisted with the panel shell). Keeps the panel above other windows when enabled.
 - Settings — opens the modal in [`src/streampanel/settings_dialog.py`](../src/streampanel/settings_dialog.py).
 - Add link — opens the modal in [`src/streampanel/add_link_dialog.py`](../src/streampanel/add_link_dialog.py).
 - Close — saves geometry and exits.

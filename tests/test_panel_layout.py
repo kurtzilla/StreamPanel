@@ -45,7 +45,7 @@ class PanelLayoutTests(unittest.TestCase):
 
     def test_strip_included_in_heights(self) -> None:
         h0 = panel_layout.min_panel_height(0)
-        self.assertGreaterEqual(h0, STRIP_HEIGHT + panel_layout.BODY_FOOTER_H)
+        self.assertGreaterEqual(h0, STRIP_HEIGHT)
 
     def test_min_panel_width_grows_with_items(self) -> None:
         w0 = panel_layout.min_panel_width(0, cols=4)

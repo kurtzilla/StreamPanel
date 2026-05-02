@@ -167,6 +167,15 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(
             s.window_startup_placement, store.WINDOW_STARTUP_CENTER
         )
+        self.assertEqual(s.panel_drag_animation, store.PANEL_DRAG_ANIM_NONE)
+
+    def test_set_panel_always_on_top(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        store.set_panel_always_on_top(conn, True)
+        self.assertTrue(store.load_panel_shell_state(conn).always_on_top)
+        store.set_panel_always_on_top(conn, False)
+        self.assertFalse(store.load_panel_shell_state(conn).always_on_top)
 
     def test_app_settings_round_trip(self) -> None:
         conn = store.connect(self.db)
@@ -183,6 +192,7 @@ class StoreTests(unittest.TestCase):
             ui_scale=1.25,
             deck_primary_action=store.DECK_PRIMARY_LAUNCH,
             window_startup_placement=store.WINDOW_STARTUP_LAST_POSITION,
+            panel_drag_animation=store.PANEL_DRAG_ANIM_SLIDE,
         )
         store.save_app_settings(conn, s_in)
         s_out = store.load_app_settings(conn)
@@ -197,6 +207,7 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(
             s_out.window_startup_placement, store.WINDOW_STARTUP_LAST_POSITION
         )
+        self.assertEqual(s_out.panel_drag_animation, store.PANEL_DRAG_ANIM_SLIDE)
 
     def test_app_settings_corrupt_json_uses_defaults(self) -> None:
         conn = store.connect(self.db)
@@ -258,6 +269,14 @@ class StoreTests(unittest.TestCase):
         store.app_kv_set(
             conn,
             "app_settings_v1",
+            '{"appearance_mode":"dark","panel_drag_animation":"spin"}',
+        )
+        s_anim = store.load_app_settings(conn)
+        self.assertEqual(s_anim.panel_drag_animation, store.PANEL_DRAG_ANIM_NONE)
+
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
             '{"appearance_mode":"dark","deck_primary_action":"bogus"}',
         )
         s6 = store.load_app_settings(conn)
@@ -266,7 +285,7 @@ class StoreTests(unittest.TestCase):
         store.app_kv_set(
             conn,
             "app_settings_v1",
-            '{"appearance_mode":"dark","deck_cell_px":200}',
+            '{"appearance_mode":"dark","deck_cell_px":500}',
         )
         s_cell = store.load_app_settings(conn)
         self.assertEqual(s_cell.deck_cell_px, store.DECK_CELL_PX_MAX)
@@ -371,6 +390,7 @@ class StoreTests(unittest.TestCase):
             ui_scale=st_hide.ui_scale,
             deck_primary_action=st_hide.deck_primary_action,
             window_startup_placement=st_hide.window_startup_placement,
+            panel_drag_animation=st_hide.panel_drag_animation,
         )
         all_vis = store.list_deck_items(conn, st_show)
         self.assertEqual(len(all_vis), 2)

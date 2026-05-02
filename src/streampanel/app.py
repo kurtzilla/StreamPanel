@@ -10,7 +10,7 @@ from streampanel import single_instance, store, themes, win_monitors
 from streampanel.add_link_dialog import open_add_link_dialog
 from streampanel.panel_dnd import install_panel_drop_handlers
 from streampanel.channels_view import open_channels_for_item
-from streampanel.deck_grid import DeckGridView, item_matches_search
+from streampanel.deck_grid import DeckGridView
 from streampanel.item_editor import open_item_editor
 from streampanel.item_launch import try_launch_deck_item
 from streampanel.settings_dialog import open_settings_dialog
@@ -34,8 +34,6 @@ from streampanel.window_chrome import (
     refresh_chrome_theme,
 )
 
-_FILTER_ENTRY_WIDTH_BASE = 200
-
 
 def _apply_ui_scale(scale: float) -> None:
     s = store.clamp_ui_scale(float(scale))
@@ -43,33 +41,16 @@ def _apply_ui_scale(scale: float) -> None:
     ctk.set_window_scaling(s)
 
 
-def _count_hidden(all_items: list[store.DeckItem], settings: store.AppSettings) -> int:
-    if settings.deck_show_hidden_items:
-        return 0
-    return sum(1 for it in all_items if store.item_hidden_from_deck(it))
-
-
-def _footer_status_line(n_db: int, n_hidden: int, sync: store.SyncResult) -> str:
-    """One-line summary for the footer under the deck (no folder path)."""
-    parts = [
-        f"{n_db} in DB",
-        f"sync +{len(sync.added_paths)}/−{len(sync.removed_ids)}",
-    ]
-    if n_hidden > 0:
-        parts.append(f"{n_hidden} hidden")
-    return " · ".join(parts)
-
-
 def run() -> None:
     try:
         data_root = user_data_dir()
     except PortableDataDirError as e:
         d = store.default_app_settings()
-        ctk.set_appearance_mode(d.appearance_mode)
+        ctk.set_appearance_mode(themes.theme_appearance(d.ui_theme))
         _apply_ui_scale(d.ui_scale)
         err_root = ctk.CTk()
         err_root.title("StreamPanel")
-        themes.apply_theme(d.ui_theme, d.appearance_mode)
+        themes.apply_theme(d.ui_theme)
         _stub_dialog(err_root, "StreamPanel data folder", str(e))
         err_root.destroy()
         return
@@ -80,31 +61,24 @@ def run() -> None:
     try:
         app_settings = store.load_app_settings(conn)
         shortcuts = resolve_shortcuts_dir(app_settings.shortcuts_dir)
-        sync = store.sync_from_folder(conn, shortcuts)
-        all_items = store.list_items(conn)
+        store.sync_from_folder(conn, shortcuts)
         visible = store.list_deck_items(conn, app_settings)
         shell = store.load_panel_shell_state(conn)
     finally:
         conn.close()
 
-    ctk.set_appearance_mode(app_settings.appearance_mode)
+    ctk.set_appearance_mode(themes.theme_appearance(app_settings.ui_theme))
     _apply_ui_scale(app_settings.ui_scale)
     root = ctk.CTk()
     root.title("StreamPanel")
-    themes.apply_theme(app_settings.ui_theme, app_settings.appearance_mode)
+    themes.apply_theme(app_settings.ui_theme)
 
     shortcuts_ref: list[Path] = [shortcuts]
     grid_cols_ref: list[int] = [app_settings.grid_cols]
     app_settings_ref: list[store.AppSettings] = [app_settings]
 
     items_ref: list[list[store.DeckItem]] = [visible]
-    search_ref: list[str] = [""]
     n_ref = [0]
-    footer_line = _footer_status_line(
-        len(all_items),
-        _count_hidden(all_items, app_settings),
-        sync,
-    )
 
     shell_state: dict[str, bool] = {"top": shell.always_on_top}
     deck_cell_px_ref: list[int] = [app_settings.deck_cell_px]
@@ -165,6 +139,10 @@ def run() -> None:
     root.minsize(min_w0, min_h)
 
     debounce_id: list[int | None] = [None]
+    drag_active: list[bool] = [False]
+    _saved_win_constraints: list[tuple[tuple[int, int], tuple[int, int]] | None] = [
+        None
+    ]
 
     def screen_number_int() -> int:
         # Tcl 9 / some Windows Tk builds omit winfo screennumber; Python 3.13 may lack the wrapper.
@@ -204,10 +182,6 @@ def run() -> None:
         if debounce_id[0] is not None:
             root.after_cancel(debounce_id[0])
         debounce_id[0] = root.after(250, flush_layout_and_persist)
-
-    def on_pin_toggled(v: bool) -> None:
-        shell_state["top"] = v
-        persist_now()
 
     def on_close() -> None:
         persist_now()
@@ -279,21 +253,16 @@ def run() -> None:
                             b.configure(fg_color="transparent")
         persist_now()
 
-    footer_status_holder: list[ctk.CTkLabel | None] = [None]
-    filter_title_holder: list[ctk.CTkLabel | None] = [None]
-    search_entry_holder: list[ctk.CTkEntry | None] = [None]
-
     def on_deck_double_click(it: store.DeckItem) -> None:
         try_launch_deck_item(root, it)
 
-    def apply_deck_filter() -> None:
-        """Rebuild grid from ``items_ref`` and ``search_ref``; updates ``n_ref`` for layout."""
+    def apply_deck() -> None:
+        """Rebuild grid from ``items_ref``; updates ``n_ref`` for layout."""
         dg = deck_grid_holder[0]
         if dg is None:
             return
         st = app_settings_ref[0]
-        q = search_ref[0]
-        shown = [it for it in items_ref[0] if item_matches_search(it, q)]
+        shown = list(items_ref[0])
         n_ref[0] = len(shown)
         delay = (
             350 if st.deck_primary_action == store.DECK_PRIMARY_CHANNELS else 0
@@ -307,31 +276,22 @@ def run() -> None:
             primary_click_delay_ms=delay,
             on_item_double_click=double_cb,
         )
-        dg.set_reorder_handler(on_deck_reorder if not q.strip() else None)
+        dg.set_reorder_handler(on_deck_reorder)
         dg.rebuild(shown)
         flush_layout_and_persist()
 
     def reload_deck() -> None:
         dg = deck_grid_holder[0]
-        lbl = footer_status_holder[0]
-        if dg is None or lbl is None:
+        if dg is None:
             return
         st = app_settings_ref[0]
         c = store.connect()
         try:
-            sy = store.sync_from_folder(c, shortcuts_ref[0])
-            all_items = store.list_items(c)
+            store.sync_from_folder(c, shortcuts_ref[0])
             items_ref[0] = store.list_deck_items(c, st)
         finally:
             c.close()
-        lbl.configure(
-            text=_footer_status_line(
-                len(all_items),
-                _count_hidden(all_items, st),
-                sy,
-            )
-        )
-        apply_deck_filter()
+        apply_deck()
 
     def after_new_link_saved(path: Path, deck_icon: str | None) -> None:
         if not deck_icon:
@@ -356,9 +316,9 @@ def run() -> None:
     def on_applied(settings: store.AppSettings) -> None:
         app_settings_ref[0] = settings
         shortcuts_ref[0] = resolve_shortcuts_dir(settings.shortcuts_dir)
-        ctk.set_appearance_mode(settings.appearance_mode)
+        ctk.set_appearance_mode(themes.theme_appearance(settings.ui_theme))
         _apply_ui_scale(settings.ui_scale)
-        themes.apply_theme(settings.ui_theme, settings.appearance_mode)
+        themes.apply_theme(settings.ui_theme)
         refresh_chrome_theme(root)
         grid_cols_ref[0] = settings.grid_cols
         deck_cell_px_ref[0] = settings.deck_cell_px
@@ -368,22 +328,18 @@ def run() -> None:
             dg.set_cell_px(settings.deck_cell_px)
         reload_deck()
         root.update_idletasks()
-        fs = footer_status_holder[0]
-        if fs is not None:
-            fs.configure(text_color=themes.current_palette().drag_hint_text)
-        se = search_entry_holder[0]
-        if se is not None:
-            se.configure(
-                width=int(
-                    _FILTER_ENTRY_WIDTH_BASE * store.clamp_ui_scale(settings.ui_scale)
-                )
-            )
-        ft = filter_title_holder[0]
-        if ft is not None:
-            ft.configure(text_color=themes.current_palette().drag_hint_text)
+
+    def on_always_on_top_from_settings(v: bool) -> None:
+        shell_state["top"] = v
+        root.attributes("-topmost", v)
+        persist_now()
 
     def on_settings() -> None:
-        open_settings_dialog(root, on_saved=on_applied)
+        open_settings_dialog(
+            root,
+            on_saved=on_applied,
+            on_always_on_top_changed=on_always_on_top_from_settings,
+        )
 
     def on_item_primary(it: store.DeckItem) -> None:
         st = app_settings_ref[0]
@@ -401,8 +357,6 @@ def run() -> None:
         open_item_editor(root, it.id, on_saved=reload_deck)
 
     def on_deck_reorder(from_idx: int, to_idx: int) -> None:
-        if search_ref[0].strip():
-            return
         vis = list(items_ref[0])
         ids = [it.id for it in vis]
         moved = ids.pop(from_idx)
@@ -428,6 +382,47 @@ def run() -> None:
             win_monitors.list_work_monitors(root),
             pointer_x=px,
         )
+
+    def _sync_tool_window_for_focus() -> None:
+        try:
+            wfocus = root.focus_get()
+        except Exception:
+            wfocus = None
+        if wfocus is None:
+            set_tool_window_excluded(root, True)
+            return
+        try:
+            if wfocus.winfo_toplevel() is root:
+                set_tool_window_excluded(root, False)
+                return
+        except Exception:
+            pass
+        set_tool_window_excluded(root, True)
+
+    def on_panel_drag_start() -> None:
+        if debounce_id[0] is not None:
+            root.after_cancel(debounce_id[0])
+            debounce_id[0] = None
+        drag_active[0] = True
+        root.update_idletasks()
+        w0, h0 = int(root.winfo_width()), int(root.winfo_height())
+        _saved_win_constraints[0] = (root.minsize(), root.maxsize())
+        root.minsize(w0, h0)
+        root.maxsize(w0, h0)
+
+    def on_panel_drag_end() -> None:
+        drag_active[0] = False
+        saved = _saved_win_constraints[0]
+        _saved_win_constraints[0] = None
+        if saved is not None:
+            mn, mx = saved
+            try:
+                root.minsize(int(mn[0]), int(mn[1]))
+                root.maxsize(int(mx[0]), int(mx[1]))
+            except Exception:
+                pass
+        root.after_idle(_sync_tool_window_for_focus)
+        flush_layout_and_persist()
 
     def _on_monitor_menu(choice: str) -> None:
         def _apply_monitor_move() -> None:
@@ -461,12 +456,14 @@ def run() -> None:
     body = apply_borderless_chrome(
         root,
         always_on_top=shell_state["top"],
-        on_pin_toggled=on_pin_toggled,
         on_settings=on_settings,
         on_close=on_close,
         top_rail_snap=_top_rail_snap,
         monitor_values=mon_labels if len(mons0) > 1 else None,
         on_monitor_selected=_on_monitor_menu if len(mons0) > 1 else None,
+        on_panel_drag_start=on_panel_drag_start,
+        on_panel_drag_end=on_panel_drag_end,
+        get_drag_animation=lambda: app_settings_ref[0].panel_drag_animation,
     )
 
     inner = ctk.CTkFrame(body, fg_color="transparent")
@@ -498,69 +495,30 @@ def run() -> None:
             else None
         ),
     )
-    apply_deck_filter()
-    deck_grid_holder[0].widget.pack(anchor="n", pady=(0, 6))
-
-    footer = ctk.CTkFrame(inner, fg_color="transparent")
-    footer.grid(row=1, column=0, columnspan=3, sticky="ew")
-    footer.grid_columnconfigure(0, weight=0)
-    footer.grid_columnconfigure(1, weight=1)
-
-    _fpal = themes.current_palette()
-    filter_fr = ctk.CTkFrame(footer, fg_color="transparent")
-    filter_fr.grid(row=0, column=0, sticky="w")
-    filter_title = ctk.CTkLabel(
-        filter_fr,
-        text="Filter",
-        font=ctk.CTkFont(size=12),
-        text_color=_fpal.drag_hint_text,
-        anchor="e",
-    )
-    filter_title.pack(side="left", padx=(0, 6))
-    filter_title_holder[0] = filter_title
-    search_entry = ctk.CTkEntry(
-        filter_fr,
-        placeholder_text="Label or path…",
-        width=int(
-            _FILTER_ENTRY_WIDTH_BASE * store.clamp_ui_scale(app_settings.ui_scale)
-        ),
-        height=28,
-        font=ctk.CTkFont(size=12),
-    )
-    search_entry.pack(side="left")
-    search_entry_holder[0] = search_entry
-
-    status_footer = ctk.CTkLabel(
-        footer,
-        text=footer_line,
-        font=ctk.CTkFont(size=12),
-        text_color=_fpal.drag_hint_text,
-        anchor="e",
-        justify="right",
-    )
-    status_footer.grid(row=0, column=1, sticky="ew", padx=(10, 0))
-    footer_status_holder[0] = status_footer
-
-    def on_search_change(_event: object | None = None) -> None:
-        search_ref[0] = search_entry.get()
-        apply_deck_filter()
-
-    search_entry.bind("<KeyRelease>", on_search_change)
+    apply_deck()
+    deck_grid_holder[0].widget.pack(anchor="n")
 
     def on_configure(event: object) -> None:
         ev = event  # type: ignore[assignment]
         if ev.widget is not root:
+            return
+        if drag_active[0]:
             return
         schedule_persist()
 
     root.bind("<Configure>", on_configure)
 
     def _root_focus_in(_event: object | None = None) -> None:
+        if drag_active[0]:
+            return
         # Modal CTkToplevels use a different toplevel; while they have focus the main
         # window may not show a taskbar button (acceptable until we track transients).
         set_tool_window_excluded(root, False)
 
     def _root_focus_out(_event: object | None = None) -> None:
+        if drag_active[0]:
+            return
+
         def maybe_exclude() -> None:
             try:
                 w = root.focus_get()
@@ -582,6 +540,7 @@ def run() -> None:
     root.bind("<FocusOut>", _root_focus_out)
 
     root.after_idle(lambda: root.after(0, flush_layout_and_persist))
+
     def _post_map_shell() -> None:
         single_instance.register_main_window_hwnd(root, data_root)
         apply_tool_window_overlay(root)

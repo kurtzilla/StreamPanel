@@ -19,8 +19,6 @@ PANEL_WIDTH_PER_ITEM = 14
 MIN_PANEL_WIDTH = PANEL_WIDTH_CURVE_CAP
 
 BODY_PAD_Y = 16
-# Single-line status + filter row packed below the deck grid.
-BODY_FOOTER_H = 44
 # Horizontal inset of the body inner frame (``padx=20`` in app) summed.
 INNER_PAD_X = 40
 
@@ -102,9 +100,9 @@ def min_panel_height(
     cols: int = DEFAULT_GRID_COLS,
     cell_px: int = DEFAULT_DECK_CELL_PX,
 ) -> int:
-    """Chrome + deck rows + footer strip (no extra blank row)."""
+    """Chrome + deck rows (no footer strip below the deck)."""
     cr = content_rows(item_count, cols)
-    return STRIP_HEIGHT + 2 * BODY_PAD_Y + cr * deck_row_h(cell_px) + BODY_FOOTER_H
+    return STRIP_HEIGHT + 2 * BODY_PAD_Y + cr * deck_row_h(cell_px)
 
 
 def max_panel_height(

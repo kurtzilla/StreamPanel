@@ -146,11 +146,23 @@ WINDOW_STARTUP_MODES: tuple[str, ...] = (
     WINDOW_STARTUP_LAST_POSITION,
 )
 _WINDOW_STARTUP_MODES = frozenset(WINDOW_STARTUP_MODES)
+
+# Values must stay aligned with ``window_chrome.PANEL_DRAG_ANIM_*`` (that module cannot import ``store``).
+PANEL_DRAG_ANIM_NONE = "none"
+PANEL_DRAG_ANIM_FADE = "fade"
+PANEL_DRAG_ANIM_SLIDE = "slide"
+PANEL_DRAG_ANIMATIONS: tuple[str, ...] = (
+    PANEL_DRAG_ANIM_NONE,
+    PANEL_DRAG_ANIM_FADE,
+    PANEL_DRAG_ANIM_SLIDE,
+)
+_PANEL_DRAG_ANIMATIONS = frozenset(PANEL_DRAG_ANIMATIONS)
+
 GRID_COLS_MIN = 2
 GRID_COLS_MAX = 8
 
-DECK_CELL_PX_MIN = 40
-DECK_CELL_PX_MAX = 80
+DECK_CELL_PX_MIN = 20
+DECK_CELL_PX_MAX = 200
 DEFAULT_DECK_CELL_PX = 50
 
 UI_SCALE_MIN = 0.85
@@ -231,6 +243,11 @@ def save_panel_shell_state(
     )
 
 
+def set_panel_always_on_top(conn: sqlite3.Connection, on: bool) -> None:
+    """Persist only the always-on-top flag (same key as ``save_panel_shell_state``)."""
+    app_kv_set(conn, _K_ALWAYS_TOP, "1" if on else "0")
+
+
 @dataclass(frozen=True)
 class AppSettings:
     """User preferences stored under ``app_settings_v1`` (separate from panel shell keys)."""
@@ -244,6 +261,7 @@ class AppSettings:
     ui_scale: float
     deck_primary_action: str
     window_startup_placement: str
+    panel_drag_animation: str
 
 
 def default_app_settings() -> AppSettings:
@@ -257,6 +275,7 @@ def default_app_settings() -> AppSettings:
         ui_scale=UI_SCALE_DEFAULT,
         deck_primary_action=DECK_PRIMARY_CHANNELS,
         window_startup_placement=WINDOW_STARTUP_CENTER,
+        panel_drag_animation=PANEL_DRAG_ANIM_NONE,
     )
 
 
@@ -348,6 +367,11 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
     raw_ut = data.get("ui_theme")
     ui_theme = themes.clamp_theme_id(raw_ut if isinstance(raw_ut, str) else None)
 
+    panel_drag_animation = base.panel_drag_animation
+    raw_pda = data.get("panel_drag_animation")
+    if isinstance(raw_pda, str) and raw_pda in _PANEL_DRAG_ANIMATIONS:
+        panel_drag_animation = raw_pda
+
     return AppSettings(
         appearance_mode=appearance_mode,
         ui_theme=ui_theme,
@@ -358,6 +382,7 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
         ui_scale=ui_scale,
         deck_primary_action=deck_primary_action,
         window_startup_placement=window_startup_placement,
+        panel_drag_animation=panel_drag_animation,
     )
 
 
@@ -388,6 +413,7 @@ def save_app_settings(conn: sqlite3.Connection, settings: AppSettings) -> None:
         "ui_scale": settings.ui_scale,
         "deck_primary_action": settings.deck_primary_action,
         "window_startup_placement": settings.window_startup_placement,
+        "panel_drag_animation": settings.panel_drag_animation,
     }
     app_kv_set(
         conn,

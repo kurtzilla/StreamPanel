@@ -82,7 +82,7 @@ If you cloned the canonical repository directly, `origin` may already be the can
 - [`store.py`](../src/streampanel/store.py) — SQLite schema/migrations, `DeckItem`, `AppSettings`, `PanelShellState`, sync from the shortcuts folder, CRUD, launch events, `app_kv` key/value.
 - [`shortcuts_folder.py`](../src/streampanel/shortcuts_folder.py) — User-data + shortcuts folder resolution (`%APPDATA%\StreamPanel\` defaults; optional `STREAMPANEL_DATA_DIR` for a portable data root).
 - [`panel_layout.py`](../src/streampanel/panel_layout.py) — pure layout math: `MIN_PANEL_WIDTH`, `min_panel_height`, `max_panel_height`, `clamp_root_geometry`.
-- [`window_chrome.py`](../src/streampanel/window_chrome.py) — borderless top strip, drag region, Pin / Settings / Add link / Close buttons.
+- [`window_chrome.py`](../src/streampanel/window_chrome.py) — borderless top strip, move icon + title drag surface, ghost drag preview, optional display picker + gear Settings + Close.
 - [`win_overlay.py`](../src/streampanel/win_overlay.py) — Windows-only: `WS_EX_TOOLWINDOW` when the main window is unfocused (no taskbar slot); cleared on `FocusIn` so a taskbar button appears while the panel is active.
 - [`single_instance.py`](../src/streampanel/single_instance.py) — One main process per `user_data_dir`: Windows named mutex + HWND JSON for second-instance foreground; POSIX `flock` lock file.
 - [`deck_grid.py`](../src/streampanel/deck_grid.py) — `DeckGridView`: cell rendering and `+` ghost add slots in the last partial row.
@@ -108,6 +108,7 @@ Tests live under [`tests/`](../tests/) and are discovered by the `test_*.py` glo
 - [`test_runtime_shell.py`](../tests/test_runtime_shell.py) — `open_path` / `ShellOpenError` (Windows `startfile` mocked where applicable).
 - [`test_panel_dnd.py`](../tests/test_panel_dnd.py) — DnD file list parsing (`paths_from_dnd_files`).
 - [`test_single_instance.py`](../tests/test_single_instance.py) — Mutex name / path hashing for single-instance guard.
+- [`test_window_chrome.py`](../tests/test_window_chrome.py) — `compute_drag_rect` and panel-drag min/max pin semantics.
 
 When adding behaviour, prefer adding focused unit tests next to the existing module's test file rather than introducing new test infrastructure.
 

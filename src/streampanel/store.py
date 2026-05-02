@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -12,6 +13,7 @@ from streampanel.panel_layout import DEFAULT_GRID_COLS
 from streampanel.shortcuts_folder import default_db_path, default_shortcuts_dir
 
 ALLOWED_SUFFIXES = {".lnk", ".url"}
+FLAG_HIDE_FROM_DECK = "hide_from_deck"
 
 
 @dataclass(frozen=True)
@@ -99,6 +101,22 @@ def migrate(conn: sqlite3.Connection) -> None:
                 value TEXT NOT NULL
             );
             PRAGMA user_version = 2;
+            """
+        )
+        conn.commit()
+    version = int(cur.execute("PRAGMA user_version").fetchone()[0])
+    if version < 3:
+        cur.executescript(
+            """
+            CREATE TABLE launch_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER,
+                source_path TEXT NOT NULL,
+                opened_at TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'view'
+            );
+            CREATE INDEX idx_launch_events_item ON launch_events(item_id, opened_at);
+            PRAGMA user_version = 3;
             """
         )
         conn.commit()
@@ -194,6 +212,7 @@ class AppSettings:
     appearance_mode: str
     shortcuts_dir: Path | None
     grid_cols: int
+    deck_show_hidden_items: bool
 
 
 def default_app_settings() -> AppSettings:
@@ -201,6 +220,7 @@ def default_app_settings() -> AppSettings:
         appearance_mode="dark",
         shortcuts_dir=None,
         grid_cols=DEFAULT_GRID_COLS,
+        deck_show_hidden_items=False,
     )
 
 
@@ -230,10 +250,18 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
     elif isinstance(raw_gc, float):
         grid_cols = clamp_grid_cols(int(raw_gc))
 
+    deck_show_hidden_items = base.deck_show_hidden_items
+    raw_dh = data.get("deck_show_hidden_items")
+    if raw_dh is True:
+        deck_show_hidden_items = True
+    elif raw_dh is False:
+        deck_show_hidden_items = False
+
     return AppSettings(
         appearance_mode=appearance_mode,
         shortcuts_dir=shortcuts_dir,
         grid_cols=grid_cols,
+        deck_show_hidden_items=deck_show_hidden_items,
     )
 
 
@@ -258,6 +286,7 @@ def save_app_settings(conn: sqlite3.Connection, settings: AppSettings) -> None:
         "appearance_mode": settings.appearance_mode,
         "shortcuts_dir": sd,
         "grid_cols": settings.grid_cols,
+        "deck_show_hidden_items": settings.deck_show_hidden_items,
     }
     app_kv_set(
         conn,
@@ -454,3 +483,34 @@ def parse_flags(item: DeckItem) -> dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except json.JSONDecodeError:
         return {}
+
+
+def item_hidden_from_deck(item: DeckItem) -> bool:
+    return bool(parse_flags(item).get(FLAG_HIDE_FROM_DECK))
+
+
+def list_deck_items(conn: sqlite3.Connection, settings: AppSettings) -> list[DeckItem]:
+    """Deck grid items; omits ``hide_from_deck`` unless ``deck_show_hidden_items``."""
+    all_items = list_items(conn)
+    if settings.deck_show_hidden_items:
+        return all_items
+    return [it for it in all_items if not item_hidden_from_deck(it)]
+
+
+def record_item_open(
+    conn: sqlite3.Connection,
+    *,
+    item_id: int,
+    source_path: str,
+    kind: str = "view",
+) -> None:
+    opened_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO launch_events (item_id, source_path, opened_at, kind)
+        VALUES (?, ?, ?, ?)
+        """,
+        (item_id, source_path, opened_at, kind),
+    )
+    conn.commit()

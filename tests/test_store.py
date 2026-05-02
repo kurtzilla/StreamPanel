@@ -131,6 +131,7 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s.appearance_mode, "dark")
         self.assertIsNone(s.shortcuts_dir)
         self.assertEqual(s.grid_cols, DEFAULT_GRID_COLS)
+        self.assertFalse(s.deck_show_hidden_items)
 
     def test_app_settings_round_trip(self) -> None:
         conn = store.connect(self.db)
@@ -141,12 +142,14 @@ class StoreTests(unittest.TestCase):
             appearance_mode="light",
             shortcuts_dir=custom,
             grid_cols=3,
+            deck_show_hidden_items=True,
         )
         store.save_app_settings(conn, s_in)
         s_out = store.load_app_settings(conn)
         self.assertEqual(s_out.appearance_mode, "light")
         self.assertEqual(s_out.shortcuts_dir, custom)
         self.assertEqual(s_out.grid_cols, 3)
+        self.assertTrue(s_out.deck_show_hidden_items)
 
     def test_app_settings_corrupt_json_uses_defaults(self) -> None:
         conn = store.connect(self.db)
@@ -177,6 +180,49 @@ class StoreTests(unittest.TestCase):
         s2 = store.load_app_settings(conn)
         self.assertEqual(s2.appearance_mode, "system")
         self.assertEqual(s2.grid_cols, 2)
+        self.assertFalse(s2.deck_show_hidden_items)
+
+    def test_launch_events_migration_and_record(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        v = int(conn.execute("PRAGMA user_version").fetchone()[0])
+        self.assertGreaterEqual(v, 3)
+        store.record_item_open(conn, item_id=42, source_path=r"C:\x\a.url")
+        cur = conn.cursor()
+        n = cur.execute("SELECT COUNT(*) FROM launch_events").fetchone()[0]
+        self.assertEqual(int(n), 1)
+        row = cur.execute(
+            "SELECT item_id, source_path, kind FROM launch_events LIMIT 1"
+        ).fetchone()
+        assert row is not None
+        self.assertEqual(row["item_id"], 42)
+        self.assertEqual(row["source_path"], r"C:\x\a.url")
+        self.assertEqual(row["kind"], "view")
+
+    def test_list_deck_items_respects_hide_flag(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        a = self.shortcuts / "a.url"
+        b = self.shortcuts / "b.url"
+        a.write_text("[InternetShortcut]\nURL=https://a/\n", encoding="ascii")
+        b.write_text("[InternetShortcut]\nURL=https://b/\n", encoding="ascii")
+        store.sync_from_folder(conn, self.shortcuts)
+        items = store.list_items(conn)
+        self.assertEqual(len(items), 2)
+        hid = next(i for i in items if "a.url" in i.source_path)
+        store.update_item(conn, hid.id, flags={store.FLAG_HIDE_FROM_DECK: True})
+        st_hide = store.default_app_settings()
+        visible = store.list_deck_items(conn, st_hide)
+        self.assertEqual(len(visible), 1)
+        self.assertIn("b.url", visible[0].source_path)
+        st_show = store.AppSettings(
+            appearance_mode=st_hide.appearance_mode,
+            shortcuts_dir=st_hide.shortcuts_dir,
+            grid_cols=st_hide.grid_cols,
+            deck_show_hidden_items=True,
+        )
+        all_vis = store.list_deck_items(conn, st_show)
+        self.assertEqual(len(all_vis), 2)
 
     def test_resolve_shortcuts_dir_override_and_fallback(self) -> None:
         conn = store.connect(self.db)

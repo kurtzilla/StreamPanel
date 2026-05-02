@@ -55,10 +55,12 @@ class DeckGridView:
         parent: ctk.CTkFrame,
         *,
         cols: int = DEFAULT_GRID_COLS,
-        on_item_activated: Callable[[DeckItem], None],
+        on_item_primary: Callable[[DeckItem], None],
+        on_item_edit: Callable[[DeckItem], None],
         on_add: Callable[[], None],
     ) -> None:
-        self._on_item = on_item_activated
+        self._on_primary = on_item_primary
+        self._on_edit = on_item_edit
         self._on_add = on_add
         self._items: list[DeckItem] = []
         self._cols = clamp_grid_cols(cols)
@@ -96,10 +98,16 @@ class DeckGridView:
                     b = ctk.CTkButton(
                         row_f,
                         text=item_display_label(it),
-                        command=lambda i=it: self._on_item(i),
+                        command=lambda i=it: self._on_primary(i),
                         **cell,
                     )
                     b.grid(row=0, column=c, sticky="nsew", padx=4, pady=2)
+
+                    def on_right(_e: object, i: DeckItem = it) -> str:
+                        self._on_edit(i)
+                        return "break"
+
+                    b.bind("<Button-3>", on_right)
                 elif idx < rows * self._cols:
                     ctk.CTkButton(
                         row_f,

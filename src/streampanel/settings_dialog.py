@@ -25,8 +25,8 @@ def open_settings_dialog(
 
     win = ctk.CTkToplevel(parent)
     win.title("Settings")
-    win.geometry("480x360")
-    win.minsize(420, 320)
+    win.geometry("480x400")
+    win.minsize(420, 360)
     win.transient(parent)
     win.configure(fg_color=COLOR_BG)
     win.attributes("-topmost", True)
@@ -80,6 +80,13 @@ def open_settings_dialog(
     grid_menu.pack(fill="x", pady=(0, 16))
     grid_menu.set(str(store.clamp_grid_cols(current.grid_cols)))
 
+    show_hidden_var = ctk.BooleanVar(value=current.deck_show_hidden_items)
+    ctk.CTkCheckBox(
+        outer,
+        text="Show items hidden from deck on the grid",
+        variable=show_hidden_var,
+    ).pack(anchor="w", pady=(0, 16))
+
     btn_row = ctk.CTkFrame(outer, fg_color="transparent")
     btn_row.pack(fill="x")
 
@@ -123,6 +130,7 @@ def open_settings_dialog(
             appearance_mode=appearance_mode,
             shortcuts_dir=shortcuts_dir,
             grid_cols=grid_cols,
+            deck_show_hidden_items=bool(show_hidden_var.get()),
         )
         c2 = store.connect()
         try:

@@ -30,8 +30,8 @@ def open_item_editor(
 
     win = ctk.CTkToplevel(parent)
     win.title("Edit shortcut")
-    win.geometry("440x460")
-    win.minsize(380, 400)
+    win.geometry("440x520")
+    win.minsize(380, 460)
     win.transient(parent)
     win.configure(fg_color=COLOR_BG)
     win.attributes("-topmost", True)
@@ -75,8 +75,14 @@ def open_item_editor(
     confirm_var = ctk.BooleanVar(value=bool(flags.get(_FLAG_CONFIRM)))
     ctk.CTkCheckBox(
         outer,
-        text="Confirm before launch",
+        text="Confirm before system launch (from viewer, when available)",
         variable=confirm_var,
+    ).pack(anchor="w", pady=(0, 6))
+    hide_var = ctk.BooleanVar(value=bool(flags.get(store.FLAG_HIDE_FROM_DECK)))
+    ctk.CTkCheckBox(
+        outer,
+        text="Hide from deck (keep in library)",
+        variable=hide_var,
     ).pack(anchor="w", pady=(0, 16))
 
     btn_row = ctk.CTkFrame(outer, fg_color="transparent")
@@ -101,6 +107,7 @@ def open_item_editor(
             notes_raw = notes_box.get("1.0", "end-1c").strip()
             merged = store.parse_flags(cur).copy()
             merged[_FLAG_CONFIRM] = bool(confirm_var.get())
+            merged[store.FLAG_HIDE_FROM_DECK] = bool(hide_var.get())
             ok = store.update_item(
                 c2,
                 item_id,

@@ -8,6 +8,7 @@ import customtkinter as ctk
 
 from streampanel import store
 from streampanel.add_link_dialog import open_add_link_dialog
+from streampanel.channels_view import open_channels_for_item
 from streampanel.deck_grid import DeckGridView
 from streampanel.item_editor import open_item_editor
 from streampanel.settings_dialog import open_settings_dialog
@@ -22,11 +23,22 @@ from streampanel.win_overlay import apply_tool_window_overlay
 from streampanel.window_chrome import apply_borderless_chrome
 
 
-def _sync_subtitle(n: int, sync: store.SyncResult, shortcuts: object) -> str:
-    return (
-        f"{n} shortcut(s) in DB — sync +{len(sync.added_paths)} / −{len(sync.removed_ids)}.\n"
-        f"Shortcuts folder:\n{shortcuts}"
-    )
+def _count_hidden(all_items: list[store.DeckItem], settings: store.AppSettings) -> int:
+    if settings.deck_show_hidden_items:
+        return 0
+    return sum(1 for it in all_items if store.item_hidden_from_deck(it))
+
+
+def _sync_subtitle(n_db: int, n_hidden: int, sync: store.SyncResult, shortcuts: object) -> str:
+    lines = [
+        f"{n_db} shortcut(s) in DB — sync +{len(sync.added_paths)} / −{len(sync.removed_ids)}.",
+        f"Shortcuts folder:\n{shortcuts}",
+    ]
+    if n_hidden > 0:
+        lines.append(
+            f'{n_hidden} hidden from deck (enable "Show items hidden from deck on the grid" in Settings).'
+        )
+    return "\n".join(lines)
 
 
 def run() -> None:
@@ -35,7 +47,8 @@ def run() -> None:
         app_settings = store.load_app_settings(conn)
         shortcuts = resolve_shortcuts_dir(app_settings.shortcuts_dir)
         sync = store.sync_from_folder(conn, shortcuts)
-        items = store.list_items(conn)
+        all_items = store.list_items(conn)
+        visible = store.list_deck_items(conn, app_settings)
         shell = store.load_panel_shell_state(conn)
     finally:
         conn.close()
@@ -46,10 +59,16 @@ def run() -> None:
 
     shortcuts_ref: list[Path] = [shortcuts]
     grid_cols_ref: list[int] = [app_settings.grid_cols]
+    app_settings_ref: list[store.AppSettings] = [app_settings]
 
-    items_ref: list[list[store.DeckItem]] = [items]
+    items_ref: list[list[store.DeckItem]] = [visible]
     n_ref = [len(items_ref[0])]
-    subtitle = _sync_subtitle(n_ref[0], sync, shortcuts)
+    subtitle = _sync_subtitle(
+        len(all_items),
+        _count_hidden(all_items, app_settings),
+        sync,
+        shortcuts,
+    )
 
     shell_state: dict[str, bool] = {"top": shell.always_on_top}
     min_h = min_panel_height(n_ref[0], grid_cols_ref[0])
@@ -145,21 +164,31 @@ def run() -> None:
         lbl = subtitle_lbl_holder[0]
         if dg is None or lbl is None:
             return
+        st = app_settings_ref[0]
         c = store.connect()
         try:
             sy = store.sync_from_folder(c, shortcuts_ref[0])
-            items_ref[0] = store.list_items(c)
+            all_items = store.list_items(c)
+            items_ref[0] = store.list_deck_items(c, st)
             n_ref[0] = len(items_ref[0])
         finally:
             c.close()
         dg.rebuild(items_ref[0])
-        lbl.configure(text=_sync_subtitle(n_ref[0], sy, shortcuts_ref[0]))
+        lbl.configure(
+            text=_sync_subtitle(
+                len(all_items),
+                _count_hidden(all_items, st),
+                sy,
+                shortcuts_ref[0],
+            )
+        )
         flush_layout_and_persist()
 
     def on_add_link() -> None:
         open_add_link_dialog(root, shortcuts_dir=shortcuts_ref[0], on_created=reload_deck)
 
     def on_applied(settings: store.AppSettings) -> None:
+        app_settings_ref[0] = settings
         shortcuts_ref[0] = resolve_shortcuts_dir(settings.shortcuts_dir)
         ctk.set_appearance_mode(settings.appearance_mode)
         grid_cols_ref[0] = settings.grid_cols
@@ -171,7 +200,15 @@ def run() -> None:
     def on_settings() -> None:
         open_settings_dialog(root, on_saved=on_applied)
 
-    def on_item(it: store.DeckItem) -> None:
+    def on_item_primary(it: store.DeckItem) -> None:
+        open_channels_for_item(root, it)
+        c = store.connect()
+        try:
+            store.record_item_open(c, item_id=it.id, source_path=it.source_path)
+        finally:
+            c.close()
+
+    def on_item_edit(it: store.DeckItem) -> None:
         open_item_editor(root, it.id, on_saved=reload_deck)
 
     body = apply_borderless_chrome(
@@ -205,7 +242,8 @@ def run() -> None:
     deck_grid_holder[0] = DeckGridView(
         inner,
         cols=grid_cols_ref[0],
-        on_item_activated=on_item,
+        on_item_primary=on_item_primary,
+        on_item_edit=on_item_edit,
         on_add=on_add_link,
     )
     deck_grid_holder[0].rebuild(items_ref[0])

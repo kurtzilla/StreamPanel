@@ -117,7 +117,7 @@ class DeckGridView:
         self._pack_extra = False
 
     def sync_extra_row(self, root_height_px: int, item_count: int) -> None:
-        hi = max_panel_height(item_count)
+        hi = max_panel_height(item_count, self._cols)
         show = root_height_px >= hi - 20
         if show and not self._pack_extra:
             self._extra_row.pack(fill="x", pady=(4, 0))

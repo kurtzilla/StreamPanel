@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 
 from streampanel import store
+from streampanel.panel_layout import DEFAULT_GRID_COLS
+from streampanel.shortcuts_folder import default_shortcuts_dir, resolve_shortcuts_dir
 
 
 class StoreTests(unittest.TestCase):
@@ -113,6 +115,71 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s1.w, 400)
         self.assertEqual(s1.h, 300)
         self.assertEqual(s1.screen_number, 1)
+
+    def test_app_settings_defaults_when_missing(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        s = store.load_app_settings(conn)
+        self.assertEqual(s.appearance_mode, "dark")
+        self.assertIsNone(s.shortcuts_dir)
+        self.assertEqual(s.grid_cols, DEFAULT_GRID_COLS)
+
+    def test_app_settings_round_trip(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        custom = self.shortcuts / "custom"
+        custom.mkdir()
+        s_in = store.AppSettings(
+            appearance_mode="light",
+            shortcuts_dir=custom,
+            grid_cols=3,
+        )
+        store.save_app_settings(conn, s_in)
+        s_out = store.load_app_settings(conn)
+        self.assertEqual(s_out.appearance_mode, "light")
+        self.assertEqual(s_out.shortcuts_dir, custom)
+        self.assertEqual(s_out.grid_cols, 3)
+
+    def test_app_settings_corrupt_json_uses_defaults(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        store.app_kv_set(conn, "app_settings_v1", "{not json")
+        s = store.load_app_settings(conn)
+        self.assertEqual(s.appearance_mode, "dark")
+        self.assertIsNone(s.shortcuts_dir)
+
+    def test_app_settings_invalid_values_clamped_or_defaulted(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
+            '{"appearance_mode":"neon","grid_cols":99,"shortcuts_dir":42}',
+        )
+        s = store.load_app_settings(conn)
+        self.assertEqual(s.appearance_mode, "dark")
+        self.assertIsNone(s.shortcuts_dir)
+        self.assertEqual(s.grid_cols, 8)
+
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
+            '{"appearance_mode":"system","grid_cols":1}',
+        )
+        s2 = store.load_app_settings(conn)
+        self.assertEqual(s2.appearance_mode, "system")
+        self.assertEqual(s2.grid_cols, 2)
+
+    def test_resolve_shortcuts_dir_override_and_fallback(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        custom = self.shortcuts / "alt"
+        custom.mkdir()
+        self.assertEqual(resolve_shortcuts_dir(custom), custom.resolve())
+        self.assertEqual(
+            resolve_shortcuts_dir(self.shortcuts / "nope"),
+            default_shortcuts_dir(),
+        )
 
     def test_clear_label_override_and_notes(self) -> None:
         conn = store.connect(self.db)

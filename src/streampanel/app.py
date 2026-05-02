@@ -14,7 +14,7 @@ from streampanel.panel_layout import (
     max_panel_height,
     min_panel_height,
 )
-from streampanel.shortcuts_folder import default_shortcuts_dir
+from streampanel.shortcuts_folder import resolve_shortcuts_dir
 from streampanel.win_overlay import apply_tool_window_overlay
 from streampanel.window_chrome import apply_borderless_chrome
 
@@ -27,25 +27,28 @@ def _sync_subtitle(n: int, sync: store.SyncResult, shortcuts: object) -> str:
 
 
 def run() -> None:
-    ctk.set_appearance_mode("dark")
-    root = ctk.CTk()
-    root.title("StreamPanel")
-
-    shortcuts = default_shortcuts_dir()
     conn = store.connect()
     try:
+        app_settings = store.load_app_settings(conn)
+        shortcuts = resolve_shortcuts_dir(app_settings.shortcuts_dir)
         sync = store.sync_from_folder(conn, shortcuts)
         items = store.list_items(conn)
         shell = store.load_panel_shell_state(conn)
     finally:
         conn.close()
 
+    ctk.set_appearance_mode(app_settings.appearance_mode)
+    root = ctk.CTk()
+    root.title("StreamPanel")
+
+    grid_cols = app_settings.grid_cols
+
     items_ref: list[list[store.DeckItem]] = [items]
     n_ref = [len(items_ref[0])]
     subtitle = _sync_subtitle(n_ref[0], sync, shortcuts)
 
     shell_state: dict[str, bool] = {"top": shell.always_on_top}
-    min_h = min_panel_height(n_ref[0])
+    min_h = min_panel_height(n_ref[0], grid_cols)
 
     if (
         shell.w is not None
@@ -102,8 +105,8 @@ def run() -> None:
 
     def flush_layout_and_persist() -> None:
         debounce_id[0] = None
-        min_h2 = min_panel_height(n_ref[0])
-        max_h2 = max_panel_height(n_ref[0])
+        min_h2 = min_panel_height(n_ref[0], grid_cols)
+        max_h2 = max_panel_height(n_ref[0], grid_cols)
         sw = root.winfo_screenwidth()
         vx, vy = root.winfo_vrootx(), root.winfo_vrooty()
         vw, vh = root.winfo_vrootwidth(), root.winfo_vrootheight()
@@ -184,6 +187,7 @@ def run() -> None:
 
     deck_grid_holder[0] = DeckGridView(
         inner,
+        cols=grid_cols,
         on_item_activated=on_item,
         on_add=on_add_link,
     )

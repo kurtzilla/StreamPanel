@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from streampanel.panel_layout import DEFAULT_GRID_COLS
 from streampanel.shortcuts_folder import default_db_path, default_shortcuts_dir
 
 ALLOWED_SUFFIXES = {".lnk", ".url"}
@@ -105,6 +106,11 @@ def migrate(conn: sqlite3.Connection) -> None:
 
 _K_ALWAYS_TOP = "panel_always_on_top_v1"
 _K_GEOM = "panel_window_geometry_v1"
+_K_APP_SETTINGS = "app_settings_v1"
+
+_APPEARANCE_MODES = frozenset({"dark", "light", "system"})
+_GRID_COLS_MIN = 2
+_GRID_COLS_MAX = 8
 
 
 def app_kv_get(conn: sqlite3.Connection, key: str) -> str | None:
@@ -177,6 +183,85 @@ def save_panel_shell_state(
             {"x": x, "y": y, "w": w, "h": h, "sn": screen_number},
             separators=(",", ":"),
         ),
+    )
+
+
+@dataclass(frozen=True)
+class AppSettings:
+    """User preferences stored under ``app_settings_v1`` (separate from panel shell keys)."""
+
+    appearance_mode: str
+    shortcuts_dir: Path | None
+    grid_cols: int
+
+
+def default_app_settings() -> AppSettings:
+    return AppSettings(
+        appearance_mode="dark",
+        shortcuts_dir=None,
+        grid_cols=DEFAULT_GRID_COLS,
+    )
+
+
+def _clamp_grid_cols(n: int) -> int:
+    return max(_GRID_COLS_MIN, min(_GRID_COLS_MAX, n))
+
+
+def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
+    base = default_app_settings()
+    raw_am = data.get("appearance_mode")
+    if isinstance(raw_am, str) and raw_am in _APPEARANCE_MODES:
+        appearance_mode = raw_am
+    else:
+        appearance_mode = base.appearance_mode
+
+    shortcuts_dir: Path | None = None
+    raw_sd = data.get("shortcuts_dir")
+    if isinstance(raw_sd, str) and raw_sd.strip():
+        shortcuts_dir = Path(raw_sd)
+
+    grid_cols = base.grid_cols
+    raw_gc = data.get("grid_cols")
+    if isinstance(raw_gc, bool):
+        pass
+    elif isinstance(raw_gc, int):
+        grid_cols = _clamp_grid_cols(raw_gc)
+    elif isinstance(raw_gc, float):
+        grid_cols = _clamp_grid_cols(int(raw_gc))
+
+    return AppSettings(
+        appearance_mode=appearance_mode,
+        shortcuts_dir=shortcuts_dir,
+        grid_cols=grid_cols,
+    )
+
+
+def load_app_settings(conn: sqlite3.Connection) -> AppSettings:
+    raw = app_kv_get(conn, _K_APP_SETTINGS)
+    if not raw:
+        return default_app_settings()
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return default_app_settings()
+    if not isinstance(data, dict):
+        return default_app_settings()
+    return _parse_app_settings_dict(data)
+
+
+def save_app_settings(conn: sqlite3.Connection, settings: AppSettings) -> None:
+    sd: str | None = None
+    if settings.shortcuts_dir is not None:
+        sd = str(settings.shortcuts_dir)
+    payload = {
+        "appearance_mode": settings.appearance_mode,
+        "shortcuts_dir": sd,
+        "grid_cols": settings.grid_cols,
+    }
+    app_kv_set(
+        conn,
+        _K_APP_SETTINGS,
+        json.dumps(payload, separators=(",", ":")),
     )
 
 

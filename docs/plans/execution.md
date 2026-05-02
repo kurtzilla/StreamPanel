@@ -14,7 +14,7 @@ Todo ids match the **Stream Panel CTk App** Cursor plan. **One active row** at a
 | `settings-persist` | next | | |
 | `settings-window-ui` | pending | | |
 | `launch-tracker` | pending | | |
-| `manual-verify` | pending | | |
+| `manual-verify` | done | — | **In-scope slice:** done rows through `add-link-ux` (excludes `settings-persist` / `settings-window-ui` / `launch-tracker` until merged). **2026-05-01:** `python -m unittest discover -s tests -p "test_*.py" -v` — 26 OK; `streampanel.store` / `deck_grid` / dialogs import OK. **Windows UI:** hand-verify chrome strip, pin + overlay, geometry persist, folder sync + status line, deck grid (+ ghosts), Settings, Add link, Item editor. |
 | `onboarding-docs` | pending | | |
 | `runtime-shell` | pending | | |
 | `backup-scale-ui` | pending | | |

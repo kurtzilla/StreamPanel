@@ -149,6 +149,9 @@ def open_item_editor(
             pass
         win.destroy()
 
+    win.protocol("WM_DELETE_WINDOW", dismiss)
+    win.bind("<Escape>", lambda _e: dismiss())
+
     def save() -> None:
         c2 = store.connect()
         try:
@@ -203,3 +206,5 @@ def open_item_editor(
         side="right", padx=(8, 0)
     )
     ctk.CTkButton(btn_row, text="Save", command=save, width=100).pack(side="right")
+
+    win.after_idle(lambda: label_entry.focus_set())

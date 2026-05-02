@@ -20,9 +20,17 @@ from streampanel.panel_layout import (
     max_panel_height,
     min_panel_height,
 )
-from streampanel.shortcuts_folder import resolve_shortcuts_dir
+from streampanel.shortcuts_folder import (
+    PortableDataDirError,
+    resolve_shortcuts_dir,
+    user_data_dir,
+)
 from streampanel.win_overlay import apply_tool_window_overlay
-from streampanel.window_chrome import apply_borderless_chrome, refresh_chrome_theme
+from streampanel.window_chrome import (
+    _stub_dialog,
+    apply_borderless_chrome,
+    refresh_chrome_theme,
+)
 
 _SUBTITLE_WRAP_BASE = 430
 
@@ -52,6 +60,19 @@ def _sync_subtitle(n_db: int, n_hidden: int, sync: store.SyncResult, shortcuts: 
 
 
 def run() -> None:
+    try:
+        user_data_dir()
+    except PortableDataDirError as e:
+        d = store.default_app_settings()
+        ctk.set_appearance_mode(d.appearance_mode)
+        _apply_ui_scale(d.ui_scale)
+        err_root = ctk.CTk()
+        err_root.title("StreamPanel")
+        themes.apply_theme(d.ui_theme, d.appearance_mode)
+        _stub_dialog(err_root, "StreamPanel data folder", str(e))
+        err_root.destroy()
+        return
+
     conn = store.connect()
     try:
         app_settings = store.load_app_settings(conn)
@@ -382,5 +403,26 @@ def run() -> None:
         on_reload_deck=reload_deck,
         after_new_link=after_new_link_saved,
     )
+
+    def _accel_grab_clear() -> bool:
+        try:
+            return root.grab_current() is None
+        except Exception:
+            return True
+
+    def _accel_settings(_event: object | None = None) -> str | None:
+        if not _accel_grab_clear():
+            return None
+        on_settings()
+        return "break"
+
+    def _accel_add_link(_event: object | None = None) -> str | None:
+        if not _accel_grab_clear():
+            return None
+        on_add_link()
+        return "break"
+
+    root.bind("<Control-comma>", _accel_settings)
+    root.bind("<Control-n>", _accel_add_link)
 
     root.mainloop()

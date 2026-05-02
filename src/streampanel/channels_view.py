@@ -39,6 +39,7 @@ def open_channels_for_item(parent: ctk.CTk, item: DeckItem) -> None:
     win.configure(fg_color=themes.dialog_background())
     win.attributes("-topmost", True)
     win.after(120, lambda: win.attributes("-topmost", False))
+    win.bind("<Escape>", lambda _e: win.destroy())
 
     outer = ctk.CTkFrame(win, fg_color="transparent")
     outer.pack(fill="both", expand=True, padx=16, pady=16)

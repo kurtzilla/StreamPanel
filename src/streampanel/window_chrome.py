@@ -32,7 +32,13 @@ def _stub_dialog(parent: ctk.CTk, title: str, message: str) -> None:
     frame = ctk.CTkFrame(win, fg_color="transparent")
     frame.pack(fill="both", expand=True, padx=16, pady=16)
     ctk.CTkLabel(frame, text=message, wraplength=300).pack(pady=(0, 12))
-    ctk.CTkButton(frame, text="OK", command=win.destroy, width=80).pack()
+
+    def dismiss() -> None:
+        win.destroy()
+
+    win.protocol("WM_DELETE_WINDOW", dismiss)
+    win.bind("<Escape>", lambda _e: dismiss())
+    ctk.CTkButton(frame, text="OK", command=dismiss, width=80).pack()
 
 
 def confirm_dialog(parent: ctk.CTk, title: str, message: str, *, confirm_text: str = "Launch") -> bool:
@@ -71,6 +77,8 @@ def confirm_dialog(parent: ctk.CTk, title: str, message: str, *, confirm_text: s
 
     ctk.CTkButton(row, text=confirm_text, command=on_confirm, width=100).pack(side="right")
     ctk.CTkButton(row, text="Cancel", command=on_cancel, width=100).pack(side="right", padx=(0, 8))
+
+    win.bind("<Escape>", lambda _e: on_cancel())
 
     parent.wait_window(win)
     return accepted[0]

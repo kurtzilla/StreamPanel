@@ -209,6 +209,17 @@ class DeckGridView:
         if self._on_double is not None:
             self._on_double(item)
 
+    def _keyboard_primary(self, item: DeckItem) -> None:
+        """Primary action from keyboard (no mouse press/drag)."""
+        self._cancel_deferred_primary()
+        if self._suppress_next_primary:
+            self._suppress_next_primary = False
+            return
+        if self._primary_delay_ms > 0:
+            self._schedule_primary(item)
+        else:
+            self._on_primary(item)
+
     def _on_item_release(self, event: object, _idx: int, item: DeckItem) -> None:
         ev = event  # type: ignore[assignment]
         try:
@@ -279,6 +290,17 @@ class DeckGridView:
                                 "<Double-Button-1>",
                                 lambda _e, t=it: self._handle_item_double(t),
                             )
+
+                        def _kbd_factory(t: DeckItem) -> Callable[[object], str]:
+                            def _kbd(_e: object) -> str:
+                                self._keyboard_primary(t)
+                                return "break"
+
+                            return _kbd
+
+                        _kbd = _kbd_factory(it)
+                        b.bind("<Return>", _kbd)
+                        b.bind("<space>", _kbd)
                     else:
                         b = ctk.CTkButton(
                             row_f,

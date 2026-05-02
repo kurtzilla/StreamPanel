@@ -276,6 +276,9 @@ def open_settings_dialog(
             pass
         win.destroy()
 
+    win.protocol("WM_DELETE_WINDOW", dismiss)
+    win.bind("<Escape>", lambda _e: dismiss())
+
     def save() -> None:
         appearance_mode = appearance_menu.get()
         if appearance_mode not in store.APPEARANCE_MODES:
@@ -337,3 +340,5 @@ def open_settings_dialog(
         side="right", padx=(8, 0)
     )
     ctk.CTkButton(btn_row, text="Save", command=save, width=100).pack(side="right")
+
+    win.after_idle(lambda: appearance_menu.focus_set())

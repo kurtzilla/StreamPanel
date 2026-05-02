@@ -125,6 +125,9 @@ def open_add_link_dialog(
             pass
         win.destroy()
 
+    win.protocol("WM_DELETE_WINDOW", dismiss)
+    win.bind("<Escape>", lambda _e: dismiss())
+
     def add() -> None:
         raw_url = url_entry.get()
         try:
@@ -169,3 +172,5 @@ def open_add_link_dialog(
         side="right", padx=(8, 0)
     )
     ctk.CTkButton(btn_row, text="Add", command=add, width=100).pack(side="right")
+
+    win.after_idle(lambda: url_entry.focus_set())

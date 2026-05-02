@@ -23,6 +23,8 @@ On first launch, StreamPanel creates a per-user data folder and a SQLite databas
 - Database: `streampanel.db` inside the user data dir (`default_db_path`).
 - Shortcuts folder: `shortcuts/` inside the user data dir (`default_shortcuts_dir`). You can point this at any other directory in Settings.
 
+**Portable / co-located data:** If you set the environment variable `STREAMPANEL_DATA_DIR` to a folder path before starting StreamPanel, the app uses that folder as the user data directory instead of `%APPDATA%\StreamPanel` (the database and default `shortcuts` subfolder are created there). Whitespace-only values are ignored. If the path is invalid or not usable, you will see an error dialog and the app will exit. Settings still lets you override the shortcuts folder independently.
+
 On every start the panel auto-syncs from the shortcuts folder: any `.lnk` or `.url` file there becomes a deck item, and items whose source file disappears are dropped (`ALLOWED_SUFFIXES` and `sync_from_folder` in [`src/streampanel/store.py`](../src/streampanel/store.py)). The status text near the top of the panel shows the current count and the sync delta.
 
 Below the status line, **Filter deck** narrows which tiles are shown (case-insensitive substring on the display label, filename stem, or full source path). The filter is in-memory only: clearing the field restores the full deck, and sync or Settings Save reapplies the current filter text to the refreshed list.
@@ -36,6 +38,8 @@ The top strip ([`src/streampanel/window_chrome.py`](../src/streampanel/window_ch
 - Settings — opens the modal in [`src/streampanel/settings_dialog.py`](../src/streampanel/settings_dialog.py).
 - Add link — opens the modal in [`src/streampanel/add_link_dialog.py`](../src/streampanel/add_link_dialog.py).
 - Close — saves geometry and exits.
+
+**Keyboard:** When the main window is active and no modal has the global grab, **Ctrl+Comma** opens Settings and **Ctrl+N** opens Add link. On deck shortcut tiles, **Enter** or **Space** runs the same primary action as a left click (including the short delay when **Primary deck click** is **Open Channels**). **Escape** closes simple message dialogs, Settings, Add link, and Edit shortcut (child widgets such as multiline notes may consume Escape first). In the Channels window, **Escape** closes the window.
 
 ## Adding a link
 

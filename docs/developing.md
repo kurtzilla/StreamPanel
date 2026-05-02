@@ -28,7 +28,7 @@ This is the same recipe used by the `manual-verify` row in [`docs/plans/executio
 - [`__main__.py`](../src/streampanel/__main__.py) — `python -m streampanel` entry; calls `app.run`.
 - [`app.py`](../src/streampanel/app.py) — wires the CTk root, toolbar callbacks, deck reload, and debounced geometry persist.
 - [`store.py`](../src/streampanel/store.py) — SQLite schema/migrations, `DeckItem`, `AppSettings`, `PanelShellState`, sync from the shortcuts folder, CRUD, launch events, `app_kv` key/value.
-- [`shortcuts_folder.py`](../src/streampanel/shortcuts_folder.py) — Windows-first user-data + shortcuts folder resolution (`%APPDATA%\StreamPanel\` defaults).
+- [`shortcuts_folder.py`](../src/streampanel/shortcuts_folder.py) — User-data + shortcuts folder resolution (`%APPDATA%\StreamPanel\` defaults; optional `STREAMPANEL_DATA_DIR` for a portable data root).
 - [`panel_layout.py`](../src/streampanel/panel_layout.py) — pure layout math: `MIN_PANEL_WIDTH`, `min_panel_height`, `max_panel_height`, `clamp_root_geometry`.
 - [`window_chrome.py`](../src/streampanel/window_chrome.py) — borderless top strip, drag region, Pin / Settings / Add link / Close buttons.
 - [`win_overlay.py`](../src/streampanel/win_overlay.py) — Windows-only `WS_EX_TOOLWINDOW` overlay (no taskbar slot).

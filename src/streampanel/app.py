@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import customtkinter as ctk
 
 from streampanel import store
 from streampanel.add_link_dialog import open_add_link_dialog
 from streampanel.deck_grid import DeckGridView
 from streampanel.item_editor import open_item_editor
+from streampanel.settings_dialog import open_settings_dialog
 from streampanel.panel_layout import (
     MIN_PANEL_WIDTH,
     clamp_root_geometry,
@@ -41,14 +44,15 @@ def run() -> None:
     root = ctk.CTk()
     root.title("StreamPanel")
 
-    grid_cols = app_settings.grid_cols
+    shortcuts_ref: list[Path] = [shortcuts]
+    grid_cols_ref: list[int] = [app_settings.grid_cols]
 
     items_ref: list[list[store.DeckItem]] = [items]
     n_ref = [len(items_ref[0])]
     subtitle = _sync_subtitle(n_ref[0], sync, shortcuts)
 
     shell_state: dict[str, bool] = {"top": shell.always_on_top}
-    min_h = min_panel_height(n_ref[0], grid_cols)
+    min_h = min_panel_height(n_ref[0], grid_cols_ref[0])
 
     if (
         shell.w is not None
@@ -105,8 +109,8 @@ def run() -> None:
 
     def flush_layout_and_persist() -> None:
         debounce_id[0] = None
-        min_h2 = min_panel_height(n_ref[0], grid_cols)
-        max_h2 = max_panel_height(n_ref[0], grid_cols)
+        min_h2 = min_panel_height(n_ref[0], grid_cols_ref[0])
+        max_h2 = max_panel_height(n_ref[0], grid_cols_ref[0])
         sw = root.winfo_screenwidth()
         vx, vy = root.winfo_vrootx(), root.winfo_vrooty()
         vw, vh = root.winfo_vrootwidth(), root.winfo_vrootheight()
@@ -143,17 +147,29 @@ def run() -> None:
             return
         c = store.connect()
         try:
-            sy = store.sync_from_folder(c, shortcuts)
+            sy = store.sync_from_folder(c, shortcuts_ref[0])
             items_ref[0] = store.list_items(c)
             n_ref[0] = len(items_ref[0])
         finally:
             c.close()
         dg.rebuild(items_ref[0])
-        lbl.configure(text=_sync_subtitle(n_ref[0], sy, shortcuts))
+        lbl.configure(text=_sync_subtitle(n_ref[0], sy, shortcuts_ref[0]))
         flush_layout_and_persist()
 
     def on_add_link() -> None:
-        open_add_link_dialog(root, shortcuts_dir=shortcuts, on_created=reload_deck)
+        open_add_link_dialog(root, shortcuts_dir=shortcuts_ref[0], on_created=reload_deck)
+
+    def on_applied(settings: store.AppSettings) -> None:
+        shortcuts_ref[0] = resolve_shortcuts_dir(settings.shortcuts_dir)
+        ctk.set_appearance_mode(settings.appearance_mode)
+        grid_cols_ref[0] = settings.grid_cols
+        dg = deck_grid_holder[0]
+        if dg is not None:
+            dg.set_cols(settings.grid_cols)
+        reload_deck()
+
+    def on_settings() -> None:
+        open_settings_dialog(root, on_saved=on_applied)
 
     def on_item(it: store.DeckItem) -> None:
         open_item_editor(root, it.id, on_saved=reload_deck)
@@ -162,6 +178,7 @@ def run() -> None:
         root,
         always_on_top=shell_state["top"],
         on_pin_toggled=on_pin_toggled,
+        on_settings=on_settings,
         on_add_link=on_add_link,
         on_close=on_close,
     )
@@ -187,7 +204,7 @@ def run() -> None:
 
     deck_grid_holder[0] = DeckGridView(
         inner,
-        cols=grid_cols,
+        cols=grid_cols_ref[0],
         on_item_activated=on_item,
         on_add=on_add_link,
     )

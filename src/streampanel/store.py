@@ -108,9 +108,10 @@ _K_ALWAYS_TOP = "panel_always_on_top_v1"
 _K_GEOM = "panel_window_geometry_v1"
 _K_APP_SETTINGS = "app_settings_v1"
 
-_APPEARANCE_MODES = frozenset({"dark", "light", "system"})
-_GRID_COLS_MIN = 2
-_GRID_COLS_MAX = 8
+APPEARANCE_MODES: tuple[str, ...] = ("dark", "light", "system")
+_APPEARANCE_MODES = frozenset(APPEARANCE_MODES)
+GRID_COLS_MIN = 2
+GRID_COLS_MAX = 8
 
 
 def app_kv_get(conn: sqlite3.Connection, key: str) -> str | None:
@@ -203,8 +204,8 @@ def default_app_settings() -> AppSettings:
     )
 
 
-def _clamp_grid_cols(n: int) -> int:
-    return max(_GRID_COLS_MIN, min(_GRID_COLS_MAX, n))
+def clamp_grid_cols(n: int) -> int:
+    return max(GRID_COLS_MIN, min(GRID_COLS_MAX, n))
 
 
 def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
@@ -225,9 +226,9 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
     if isinstance(raw_gc, bool):
         pass
     elif isinstance(raw_gc, int):
-        grid_cols = _clamp_grid_cols(raw_gc)
+        grid_cols = clamp_grid_cols(raw_gc)
     elif isinstance(raw_gc, float):
-        grid_cols = _clamp_grid_cols(int(raw_gc))
+        grid_cols = clamp_grid_cols(int(raw_gc))
 
     return AppSettings(
         appearance_mode=appearance_mode,

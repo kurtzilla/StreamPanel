@@ -116,6 +116,14 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s1.h, 300)
         self.assertEqual(s1.screen_number, 1)
 
+    def test_public_settings_constants(self) -> None:
+        self.assertEqual(set(store.APPEARANCE_MODES), {"dark", "light", "system"})
+        self.assertEqual(store.GRID_COLS_MIN, 2)
+        self.assertEqual(store.GRID_COLS_MAX, 8)
+        self.assertEqual(store.clamp_grid_cols(1), 2)
+        self.assertEqual(store.clamp_grid_cols(99), 8)
+        self.assertEqual(store.clamp_grid_cols(4), 4)
+
     def test_app_settings_defaults_when_missing(self) -> None:
         conn = store.connect(self.db)
         self.addCleanup(conn.close)

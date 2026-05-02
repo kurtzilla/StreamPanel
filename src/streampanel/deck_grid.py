@@ -13,7 +13,7 @@ from streampanel.panel_layout import (
     content_rows,
     max_panel_height,
 )
-from streampanel.store import DeckItem
+from streampanel.store import DeckItem, clamp_grid_cols
 
 
 def item_display_label(item: DeckItem, *, max_len: int = 22) -> str:
@@ -58,10 +58,10 @@ class DeckGridView:
         on_item_activated: Callable[[DeckItem], None],
         on_add: Callable[[], None],
     ) -> None:
-        self._cols = cols
         self._on_item = on_item_activated
         self._on_add = on_add
         self._items: list[DeckItem] = []
+        self._cols = clamp_grid_cols(cols)
         self._deck = ctk.CTkFrame(parent, fg_color="transparent")
         self._rows_host = ctk.CTkFrame(self._deck, fg_color="transparent")
         self._rows_host.pack(fill="x", expand=True)
@@ -72,6 +72,10 @@ class DeckGridView:
     @property
     def widget(self) -> ctk.CTkFrame:
         return self._deck
+
+    def set_cols(self, n: int) -> None:
+        self._cols = clamp_grid_cols(n)
+        self.rebuild(self._items)
 
     def rebuild(self, items: list[DeckItem]) -> None:
         self._items = list(items)

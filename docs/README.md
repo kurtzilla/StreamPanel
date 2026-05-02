@@ -4,6 +4,8 @@ Shared project documentation lives here. **Do not** use [`.cursor/`](../.cursor/
 
 | Path | Purpose |
 |------|---------|
+| [docs/getting-started.md](getting-started.md) | End-user quick start: install, first-run layout, toolbar, add link, item editor, settings, window behaviour, troubleshooting |
+| [docs/developing.md](developing.md) | Contributor guide: dev loop, tests, package tour, conventions, plans / execution-queue workflow, Cursor pointers |
 | [docs/plans/](plans/README.md) | Roadmaps, phases, initiative write-ups (markdown) |
 | [docs/cursor.md](cursor.md) | Where Cursor-specific config lives vs this folder |
 | [vendor/](../vendor/README.md) (repo root) | Optional vendored/submodule code—not normal PyPI dependencies |

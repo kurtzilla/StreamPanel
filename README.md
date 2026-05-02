@@ -45,6 +45,11 @@ Tests:
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
+## Onboarding
+
+- **Quick start** (end users): [`docs/getting-started.md`](docs/getting-started.md) — first-run layout, toolbar, add link, item editor, settings, window behaviour, troubleshooting.
+- **Develop** (contributors): [`docs/developing.md`](docs/developing.md) — package tour, tests, conventions, plans / execution-queue workflow, Cursor/agent pointers.
+
 ## Status
 
 **`window-chrome`** done — borderless shell + top strip ([`window_chrome.py`](src/streampanel/window_chrome.py)). **`panel-behavior`** done — pin, geometry persist, resize caps, Win overlay. **`deck-grid-ui`** done — [`deck_grid.py`](src/streampanel/deck_grid.py). **`deck-item-editor`** done — [`item_editor.py`](src/streampanel/item_editor.py). **`add-link-ux`** done — [`add_link_dialog.py`](src/streampanel/add_link_dialog.py) ([`docs/plans/execution.md`](docs/plans/execution.md)). **`manual-verify`** done (automated + import smoke; Windows UI still hand-check per queue Notes). Next: **`settings-persist`**.

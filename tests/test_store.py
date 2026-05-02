@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from streampanel import store
+from streampanel import store, themes
 from streampanel.panel_layout import DEFAULT_GRID_COLS
 from streampanel.shortcuts_folder import default_shortcuts_dir, resolve_shortcuts_dir
 
@@ -156,6 +156,7 @@ class StoreTests(unittest.TestCase):
         self.addCleanup(conn.close)
         s = store.load_app_settings(conn)
         self.assertEqual(s.appearance_mode, "dark")
+        self.assertEqual(s.ui_theme, themes.default_theme_id())
         self.assertIsNone(s.shortcuts_dir)
         self.assertEqual(s.grid_cols, DEFAULT_GRID_COLS)
         self.assertFalse(s.deck_show_hidden_items)
@@ -169,6 +170,7 @@ class StoreTests(unittest.TestCase):
         custom.mkdir()
         s_in = store.AppSettings(
             appearance_mode="light",
+            ui_theme="ocean",
             shortcuts_dir=custom,
             grid_cols=3,
             deck_show_hidden_items=True,
@@ -178,6 +180,7 @@ class StoreTests(unittest.TestCase):
         store.save_app_settings(conn, s_in)
         s_out = store.load_app_settings(conn)
         self.assertEqual(s_out.appearance_mode, "light")
+        self.assertEqual(s_out.ui_theme, "ocean")
         self.assertEqual(s_out.shortcuts_dir, custom)
         self.assertEqual(s_out.grid_cols, 3)
         self.assertTrue(s_out.deck_show_hidden_items)
@@ -248,6 +251,14 @@ class StoreTests(unittest.TestCase):
         )
         s6 = store.load_app_settings(conn)
         self.assertEqual(s6.deck_primary_action, store.DECK_PRIMARY_CHANNELS)
+
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
+            '{"appearance_mode":"dark","ui_theme":"not_a_real_theme"}',
+        )
+        s7 = store.load_app_settings(conn)
+        self.assertEqual(s7.ui_theme, themes.default_theme_id())
 
     def test_export_db_to_file(self) -> None:
         conn = store.connect(self.db)
@@ -325,6 +336,7 @@ class StoreTests(unittest.TestCase):
         self.assertIn("b.url", visible[0].source_path)
         st_show = store.AppSettings(
             appearance_mode=st_hide.appearance_mode,
+            ui_theme=st_hide.ui_theme,
             shortcuts_dir=st_hide.shortcuts_dir,
             grid_cols=st_hide.grid_cols,
             deck_show_hidden_items=True,

@@ -6,10 +6,9 @@ from datetime import datetime, timezone
 
 import customtkinter as ctk
 
-from streampanel import store
+from streampanel import store, themes
 from streampanel.item_launch import try_launch_deck_item
 from streampanel.store import DeckItem
-from streampanel.window_chrome import COLOR_BG
 
 
 def _format_activity_line(ev: store.LaunchEventRow) -> str:
@@ -37,7 +36,7 @@ def open_channels_for_item(parent: ctk.CTk, item: DeckItem) -> None:
     win.geometry("500x560")
     win.minsize(420, 440)
     win.transient(parent)
-    win.configure(fg_color=COLOR_BG)
+    win.configure(fg_color=themes.dialog_background())
     win.attributes("-topmost", True)
     win.after(120, lambda: win.attributes("-topmost", False))
 

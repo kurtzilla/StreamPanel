@@ -10,6 +10,7 @@ import customtkinter as ctk
 _DRAG_THRESHOLD_PX = 8
 _CELL_ICON_PX = 24
 
+from streampanel import themes
 from streampanel.panel_layout import (
     DEFAULT_GRID_COLS,
     ROW_H,
@@ -41,20 +42,22 @@ def item_matches_search(item: DeckItem, query: str) -> bool:
 
 
 def _ghost_style() -> dict[str, object]:
+    pal = themes.current_palette()
     return dict(
         corner_radius=8,
-        fg_color="#2a2a2a",
-        hover_color="#3d3d3d",
+        fg_color=pal.ghost_cell,
+        hover_color=pal.ghost_cell_hover,
         font=ctk.CTkFont(size=12),
         height=ROW_H - 8,
     )
 
 
 def _cell_style() -> dict[str, object]:
+    pal = themes.current_palette()
     return dict(
         corner_radius=8,
-        fg_color="#323232",
-        hover_color="#404040",
+        fg_color=pal.deck_cell,
+        hover_color=pal.deck_cell_hover,
         font=ctk.CTkFont(size=12),
         height=ROW_H - 8,
         anchor="center",

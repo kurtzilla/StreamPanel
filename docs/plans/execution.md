@@ -20,7 +20,7 @@ Todo ids match the **Stream Panel CTk App** Cursor plan. **One active row** at a
 | `backup-scale-ui` | done | | |
 | `deck-ops-diagnostics` | done | — | Deck drag-reorder ([`deck_grid.py`](src/streampanel/deck_grid.py), [`app.py`](src/streampanel/app.py)); [`merge_full_order_after_visible_reorder`](src/streampanel/store.py) + tests; Settings About/Diagnostics + copy ([`settings_dialog.py`](src/streampanel/settings_dialog.py)); [`getting-started.md`](../getting-started.md) troubleshooting. |
 | `v1-stretch-features` | done | — | Shared launch [`item_launch.py`](src/streampanel/item_launch.py); [`list_launch_events_for_item`](src/streampanel/store.py) + tests; Channels lower pane notes + activity ([`channels_view.py`](src/streampanel/channels_view.py)); Settings **Primary deck click** + `deck_primary_action`; deck filter + delayed primary / double-click launch + reorder off when filtered ([`app.py`](src/streampanel/app.py), [`deck_grid.py`](src/streampanel/deck_grid.py)); optional tile `CTkImage` from `icon_path`. **Manual:** filter + reorder cleared; Channels history after view/launch; both primary modes; double-click launch when Open Channels. **2026-05-01:** `python -m unittest discover -s tests -p "test_*.py" -v` — 34 OK. |
-| `theme-system` | pending | | |
+| `theme-system` | done | | |
 | `portable-a11y` | pending | | |
 | `git-upstream` | pending | | |
 

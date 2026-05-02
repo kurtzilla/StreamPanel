@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from streampanel import themes
 from streampanel.panel_layout import DEFAULT_GRID_COLS
 from streampanel.shortcuts_folder import default_db_path, default_shortcuts_dir
 
@@ -224,6 +225,7 @@ class AppSettings:
     """User preferences stored under ``app_settings_v1`` (separate from panel shell keys)."""
 
     appearance_mode: str
+    ui_theme: str
     shortcuts_dir: Path | None
     grid_cols: int
     deck_show_hidden_items: bool
@@ -234,6 +236,7 @@ class AppSettings:
 def default_app_settings() -> AppSettings:
     return AppSettings(
         appearance_mode="dark",
+        ui_theme=themes.default_theme_id(),
         shortcuts_dir=None,
         grid_cols=DEFAULT_GRID_COLS,
         deck_show_hidden_items=False,
@@ -309,8 +312,12 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
     if isinstance(raw_dpa, str) and raw_dpa in _DECK_PRIMARY_ACTIONS:
         deck_primary_action = raw_dpa
 
+    raw_ut = data.get("ui_theme")
+    ui_theme = themes.clamp_theme_id(raw_ut if isinstance(raw_ut, str) else None)
+
     return AppSettings(
         appearance_mode=appearance_mode,
+        ui_theme=ui_theme,
         shortcuts_dir=shortcuts_dir,
         grid_cols=grid_cols,
         deck_show_hidden_items=deck_show_hidden_items,
@@ -338,6 +345,7 @@ def save_app_settings(conn: sqlite3.Connection, settings: AppSettings) -> None:
         sd = str(settings.shortcuts_dir)
     payload = {
         "appearance_mode": settings.appearance_mode,
+        "ui_theme": settings.ui_theme,
         "shortcuts_dir": sd,
         "grid_cols": settings.grid_cols,
         "deck_show_hidden_items": settings.deck_show_hidden_items,

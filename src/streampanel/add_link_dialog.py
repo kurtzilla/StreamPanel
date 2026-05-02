@@ -9,7 +9,8 @@ from urllib.parse import urlparse, urlunparse
 
 import customtkinter as ctk
 
-from streampanel.window_chrome import COLOR_BG, _stub_dialog
+from streampanel import themes
+from streampanel.window_chrome import _stub_dialog
 
 _MAX_STEM_LEN = 120
 _INVALID_WIN_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -84,7 +85,7 @@ def open_add_link_dialog(
     win.geometry("440x280")
     win.minsize(380, 260)
     win.transient(parent)
-    win.configure(fg_color=COLOR_BG)
+    win.configure(fg_color=themes.dialog_background())
     win.attributes("-topmost", True)
     win.after(120, lambda: win.attributes("-topmost", False))
     win.grab_set()

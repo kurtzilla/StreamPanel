@@ -6,7 +6,7 @@ from pathlib import Path
 
 import customtkinter as ctk
 
-from streampanel import store
+from streampanel import store, themes
 from streampanel.add_link_dialog import open_add_link_dialog
 from streampanel.channels_view import open_channels_for_item
 from streampanel.deck_grid import DeckGridView, item_matches_search
@@ -21,7 +21,7 @@ from streampanel.panel_layout import (
 )
 from streampanel.shortcuts_folder import resolve_shortcuts_dir
 from streampanel.win_overlay import apply_tool_window_overlay
-from streampanel.window_chrome import apply_borderless_chrome
+from streampanel.window_chrome import apply_borderless_chrome, refresh_chrome_theme
 
 _SUBTITLE_WRAP_BASE = 430
 
@@ -66,6 +66,7 @@ def run() -> None:
     _apply_ui_scale(app_settings.ui_scale)
     root = ctk.CTk()
     root.title("StreamPanel")
+    themes.apply_theme(app_settings.ui_theme, app_settings.appearance_mode)
 
     shortcuts_ref: list[Path] = [shortcuts]
     grid_cols_ref: list[int] = [app_settings.grid_cols]
@@ -229,6 +230,8 @@ def run() -> None:
         shortcuts_ref[0] = resolve_shortcuts_dir(settings.shortcuts_dir)
         ctk.set_appearance_mode(settings.appearance_mode)
         _apply_ui_scale(settings.ui_scale)
+        themes.apply_theme(settings.ui_theme, settings.appearance_mode)
+        refresh_chrome_theme(root)
         grid_cols_ref[0] = settings.grid_cols
         dg = deck_grid_holder[0]
         if dg is not None:

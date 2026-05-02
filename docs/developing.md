@@ -57,7 +57,7 @@ These mirror [`.cursor/rules/streampanel-core.md`](../.cursor/rules/streampanel-
 - Src layout — package code lives under `src/streampanel/`; do not add a top-level `streampanel/` package.
 - Focused changes — touch only what the task needs; avoid drive-by refactors. Match the existing patterns rather than introducing new ones inline.
 - Persistence goes through `store.py` — schema changes use the `migrate(conn)` ladder (`PRAGMA user_version`); ad-hoc app key/value pairs use `app_kv_get` / `app_kv_set` with a versioned key.
-- New modal dialogs follow the pattern in [`settings_dialog.py`](../src/streampanel/settings_dialog.py), [`item_editor.py`](../src/streampanel/item_editor.py), and [`add_link_dialog.py`](../src/streampanel/add_link_dialog.py): `CTkToplevel`, `transient(parent)`, `grab_set()`, `COLOR_BG`, brief `-topmost` flash for focus, and a `dismiss()` helper that releases the grab.
+- New modal dialogs follow the pattern in [`settings_dialog.py`](../src/streampanel/settings_dialog.py), [`item_editor.py`](../src/streampanel/item_editor.py), and [`add_link_dialog.py`](../src/streampanel/add_link_dialog.py): `CTkToplevel`, `transient(parent)`, `grab_set()`, `themes.dialog_background()` for `fg_color`, brief `-topmost` flash for focus, and a `dismiss()` helper that releases the grab.
 - Errors that must reach the user use `_stub_dialog` from [`window_chrome.py`](../src/streampanel/window_chrome.py).
 - Where a module is intentionally Windows-only (`win_overlay.py`), guard with `sys.platform == "win32"` and degrade silently on other platforms.
 - Lint/format config lives in [`pyproject.toml`](../pyproject.toml). Do not duplicate package identity (name, version, deps) in prose elsewhere.

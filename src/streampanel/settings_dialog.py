@@ -14,13 +14,13 @@ from tkinter import filedialog
 
 import customtkinter as ctk
 
-from streampanel import store
+from streampanel import store, themes
 from streampanel.shortcuts_folder import (
     default_db_path,
     resolve_shortcuts_dir,
     user_data_dir,
 )
-from streampanel.window_chrome import COLOR_BG, _stub_dialog
+from streampanel.window_chrome import _stub_dialog
 
 
 def _app_version() -> str:
@@ -80,7 +80,7 @@ def open_settings_dialog(
     win.geometry("520x620")
     win.minsize(440, 520)
     win.transient(parent)
-    win.configure(fg_color=COLOR_BG)
+    win.configure(fg_color=themes.dialog_background())
     win.attributes("-topmost", True)
     win.after(120, lambda: win.attributes("-topmost", False))
     win.grab_set()
@@ -92,6 +92,13 @@ def open_settings_dialog(
     appearance_menu = ctk.CTkOptionMenu(outer, values=list(store.APPEARANCE_MODES))
     appearance_menu.pack(fill="x", pady=(0, 12))
     appearance_menu.set(current.appearance_mode)
+
+    ctk.CTkLabel(outer, text="Panel tint", anchor="w").pack(fill="x", pady=(0, 4))
+    theme_labels = [themes.THEME_LABELS[tid] for tid in themes.THEME_IDS]
+    label_to_theme = {themes.THEME_LABELS[tid]: tid for tid in themes.THEME_IDS}
+    theme_menu = ctk.CTkOptionMenu(outer, values=theme_labels)
+    theme_menu.pack(fill="x", pady=(0, 12))
+    theme_menu.set(themes.THEME_LABELS[themes.clamp_theme_id(current.ui_theme)])
 
     preset_labels = [lbl for lbl, _ in store.UI_SCALE_PRESETS]
     preset_by_label = {lbl: v for lbl, v in store.UI_SCALE_PRESETS}
@@ -305,8 +312,12 @@ def open_settings_dialog(
         plab = primary_menu.get()
         deck_primary_action = _primary_action_for.get(plab, store.DECK_PRIMARY_CHANNELS)
 
+        theme_label = theme_menu.get()
+        ui_theme = label_to_theme.get(theme_label, themes.default_theme_id())
+
         settings = store.AppSettings(
             appearance_mode=appearance_mode,
+            ui_theme=ui_theme,
             shortcuts_dir=shortcuts_dir,
             grid_cols=grid_cols,
             deck_show_hidden_items=bool(show_hidden_var.get()),

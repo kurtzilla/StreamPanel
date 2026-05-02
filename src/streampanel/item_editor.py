@@ -7,8 +7,8 @@ from pathlib import Path
 
 import customtkinter as ctk
 
-from streampanel import store
-from streampanel.window_chrome import COLOR_BG, _stub_dialog
+from streampanel import store, themes
+from streampanel.window_chrome import _stub_dialog
 
 _FLAG_CONFIRM = "confirm_launch"
 
@@ -33,7 +33,7 @@ def open_item_editor(
     win.geometry("440x520")
     win.minsize(380, 460)
     win.transient(parent)
-    win.configure(fg_color=COLOR_BG)
+    win.configure(fg_color=themes.dialog_background())
     win.attributes("-topmost", True)
     win.after(120, lambda: win.attributes("-topmost", False))
     win.grab_set()

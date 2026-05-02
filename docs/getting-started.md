@@ -25,15 +25,13 @@ On first launch, StreamPanel creates a per-user data folder and a SQLite databas
 
 **Portable / co-located data:** If you set the environment variable `STREAMPANEL_DATA_DIR` to a folder path before starting StreamPanel, the app uses that folder as the user data directory instead of `%APPDATA%\StreamPanel` (the database and default `shortcuts` subfolder are created there). Whitespace-only values are ignored. If the path is invalid or not usable, you will see an error dialog and the app will exit. Settings still lets you override the shortcuts folder independently.
 
-On every start the panel auto-syncs from the shortcuts folder: any `.lnk` or `.url` file there becomes a deck item, and items whose source file disappears are dropped (`ALLOWED_SUFFIXES` and `sync_from_folder` in [`src/streampanel/store.py`](../src/streampanel/store.py)). The status text near the top of the panel shows the current count and the sync delta.
-
-Below the status line, **Filter deck** narrows which tiles are shown (case-insensitive substring on the display label, filename stem, or full source path). The filter is in-memory only: clearing the field restores the full deck, and sync or Settings Save reapplies the current filter text to the refreshed list.
+On every start the panel auto-syncs from the shortcuts folder: any `.lnk` or `.url` file there becomes a deck item, and items whose source file disappears are dropped (`ALLOWED_SUFFIXES` and `sync_from_folder` in [`src/streampanel/store.py`](../src/streampanel/store.py)). A **single-line footer** under the deck shows shortcut counts and the last sync delta (and hidden-from-deck count when relevant). On the same line to the right, **Filter** and the filter field narrow which tiles are shown (case-insensitive substring on the display label, filename stem, or full source path). The filter is in-memory only: clearing the field restores the full deck, and sync or Settings Save reapplies the current filter text to the refreshed list.
 
 ## The toolbar
 
 The top strip ([`src/streampanel/window_chrome.py`](../src/streampanel/window_chrome.py)) replaces the native title bar. Left-to-right:
 
-- Drag region — click-and-drag anywhere on "StreamPanel — drag here to move" to reposition the window.
+- Drag region — click-and-drag on the strip text to move the window along the top of the display (multi-monitor aware).
 - Pin on / Pin off — toggles always-on-top. The state is persisted across sessions.
 - Settings — opens the modal in [`src/streampanel/settings_dialog.py`](../src/streampanel/settings_dialog.py).
 - Add link — opens the modal in [`src/streampanel/add_link_dialog.py`](../src/streampanel/add_link_dialog.py).
@@ -88,7 +86,9 @@ If a deck item has `icon_path` set in the database to an existing image file, th
 
 The shell is borderless and resizable within bounds derived from the current item count and column count ([`src/streampanel/panel_layout.py`](../src/streampanel/panel_layout.py)). Position, size, screen number, and pin state are debounced-persisted via `save_panel_shell_state` in [`src/streampanel/store.py`](../src/streampanel/store.py), so closing and reopening the panel restores the same spot.
 
-On Windows the panel sets `WS_EX_TOOLWINDOW` ([`src/streampanel/win_overlay.py`](../src/streampanel/win_overlay.py)) so it does not occupy a taskbar slot. Click-through is intentionally not enabled.
+On Windows the panel uses `WS_EX_TOOLWINDOW` ([`src/streampanel/win_overlay.py`](../src/streampanel/win_overlay.py)) while **unfocused** so it does not occupy a taskbar slot; when you **focus** the main panel, that style is cleared so a **normal taskbar button** appears. (A modal such as Settings may not keep the main window’s taskbar entry while the dialog has focus.) Click-through is intentionally not enabled.
+
+Only **one** main panel process is allowed per user data directory ([`src/streampanel/single_instance.py`](../src/streampanel/single_instance.py)): a second launch exits after trying to restore the existing window to the foreground (Windows), or exits immediately (POSIX file lock). A different `STREAMPANEL_DATA_DIR` (or default vs portable root) counts as a different data directory and may run a second instance.
 
 ## Troubleshooting
 

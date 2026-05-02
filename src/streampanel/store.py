@@ -139,8 +139,19 @@ DECK_PRIMARY_CHANNELS = "channels"
 DECK_PRIMARY_LAUNCH = "launch"
 DECK_PRIMARY_ACTIONS: tuple[str, ...] = (DECK_PRIMARY_CHANNELS, DECK_PRIMARY_LAUNCH)
 _DECK_PRIMARY_ACTIONS = frozenset(DECK_PRIMARY_ACTIONS)
+WINDOW_STARTUP_CENTER = "center"
+WINDOW_STARTUP_LAST_POSITION = "last_position"
+WINDOW_STARTUP_MODES: tuple[str, ...] = (
+    WINDOW_STARTUP_CENTER,
+    WINDOW_STARTUP_LAST_POSITION,
+)
+_WINDOW_STARTUP_MODES = frozenset(WINDOW_STARTUP_MODES)
 GRID_COLS_MIN = 2
 GRID_COLS_MAX = 8
+
+DECK_CELL_PX_MIN = 40
+DECK_CELL_PX_MAX = 80
+DEFAULT_DECK_CELL_PX = 50
 
 UI_SCALE_MIN = 0.85
 UI_SCALE_MAX = 1.75
@@ -228,9 +239,11 @@ class AppSettings:
     ui_theme: str
     shortcuts_dir: Path | None
     grid_cols: int
+    deck_cell_px: int
     deck_show_hidden_items: bool
     ui_scale: float
     deck_primary_action: str
+    window_startup_placement: str
 
 
 def default_app_settings() -> AppSettings:
@@ -239,14 +252,20 @@ def default_app_settings() -> AppSettings:
         ui_theme=themes.default_theme_id(),
         shortcuts_dir=None,
         grid_cols=DEFAULT_GRID_COLS,
+        deck_cell_px=DEFAULT_DECK_CELL_PX,
         deck_show_hidden_items=False,
         ui_scale=UI_SCALE_DEFAULT,
         deck_primary_action=DECK_PRIMARY_CHANNELS,
+        window_startup_placement=WINDOW_STARTUP_CENTER,
     )
 
 
 def clamp_grid_cols(n: int) -> int:
     return max(GRID_COLS_MIN, min(GRID_COLS_MAX, n))
+
+
+def clamp_deck_cell_px(n: int) -> int:
+    return max(DECK_CELL_PX_MIN, min(DECK_CELL_PX_MAX, int(n)))
 
 
 def clamp_ui_scale(x: float) -> float:
@@ -290,6 +309,15 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
     elif isinstance(raw_gc, float):
         grid_cols = clamp_grid_cols(int(raw_gc))
 
+    deck_cell_px = base.deck_cell_px
+    raw_dcp = data.get("deck_cell_px")
+    if isinstance(raw_dcp, bool):
+        pass
+    elif isinstance(raw_dcp, int):
+        deck_cell_px = clamp_deck_cell_px(raw_dcp)
+    elif isinstance(raw_dcp, float):
+        deck_cell_px = clamp_deck_cell_px(int(raw_dcp))
+
     deck_show_hidden_items = base.deck_show_hidden_items
     raw_dh = data.get("deck_show_hidden_items")
     if raw_dh is True:
@@ -312,6 +340,11 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
     if isinstance(raw_dpa, str) and raw_dpa in _DECK_PRIMARY_ACTIONS:
         deck_primary_action = raw_dpa
 
+    window_startup_placement = base.window_startup_placement
+    raw_wsp = data.get("window_startup_placement")
+    if isinstance(raw_wsp, str) and raw_wsp in _WINDOW_STARTUP_MODES:
+        window_startup_placement = raw_wsp
+
     raw_ut = data.get("ui_theme")
     ui_theme = themes.clamp_theme_id(raw_ut if isinstance(raw_ut, str) else None)
 
@@ -320,9 +353,11 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
         ui_theme=ui_theme,
         shortcuts_dir=shortcuts_dir,
         grid_cols=grid_cols,
+        deck_cell_px=deck_cell_px,
         deck_show_hidden_items=deck_show_hidden_items,
         ui_scale=ui_scale,
         deck_primary_action=deck_primary_action,
+        window_startup_placement=window_startup_placement,
     )
 
 
@@ -348,9 +383,11 @@ def save_app_settings(conn: sqlite3.Connection, settings: AppSettings) -> None:
         "ui_theme": settings.ui_theme,
         "shortcuts_dir": sd,
         "grid_cols": settings.grid_cols,
+        "deck_cell_px": settings.deck_cell_px,
         "deck_show_hidden_items": settings.deck_show_hidden_items,
         "ui_scale": settings.ui_scale,
         "deck_primary_action": settings.deck_primary_action,
+        "window_startup_placement": settings.window_startup_placement,
     }
     app_kv_set(
         conn,

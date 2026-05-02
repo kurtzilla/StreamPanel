@@ -5,23 +5,58 @@
       "name": "StreamPanel",
       "type": "debugpy",
       "request": "launch",
+      "python": "${command:python.interpreterPath}",
+      "program": "${workspaceFolder}/src/streampanel/__main__.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYTHONUNBUFFERED": "1"
+      }
+    },
+    {
+      "name": "StreamPanel (-m streampanel)",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${command:python.interpreterPath}",
       "module": "streampanel",
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "justMyCode": true,
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/src"
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYTHONUNBUFFERED": "1"
+      }
+    },
+    {
+      "name": "StreamPanel (external terminal — shows import errors)",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${command:python.interpreterPath}",
+      "program": "${workspaceFolder}/src/streampanel/__main__.py",
+      "cwd": "${workspaceFolder}",
+      "console": "externalTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYTHONUNBUFFERED": "1"
       }
     },
     {
       "name": "StreamPanel (pip install -e ., then run)",
       "type": "debugpy",
       "request": "launch",
+      "python": "${command:python.interpreterPath}",
       "module": "streampanel",
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "preLaunchTask": "pip: editable install (StreamPanel)"
+      "preLaunchTask": "pip: editable install (StreamPanel)",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYTHONUNBUFFERED": "1"
+      }
     }
   ]
 }

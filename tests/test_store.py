@@ -160,9 +160,13 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s.ui_theme, themes.default_theme_id())
         self.assertIsNone(s.shortcuts_dir)
         self.assertEqual(s.grid_cols, DEFAULT_GRID_COLS)
+        self.assertEqual(s.deck_cell_px, store.DEFAULT_DECK_CELL_PX)
         self.assertFalse(s.deck_show_hidden_items)
         self.assertEqual(s.ui_scale, store.UI_SCALE_DEFAULT)
         self.assertEqual(s.deck_primary_action, store.DECK_PRIMARY_CHANNELS)
+        self.assertEqual(
+            s.window_startup_placement, store.WINDOW_STARTUP_CENTER
+        )
 
     def test_app_settings_round_trip(self) -> None:
         conn = store.connect(self.db)
@@ -174,9 +178,11 @@ class StoreTests(unittest.TestCase):
             ui_theme="ocean",
             shortcuts_dir=custom,
             grid_cols=3,
+            deck_cell_px=56,
             deck_show_hidden_items=True,
             ui_scale=1.25,
             deck_primary_action=store.DECK_PRIMARY_LAUNCH,
+            window_startup_placement=store.WINDOW_STARTUP_LAST_POSITION,
         )
         store.save_app_settings(conn, s_in)
         s_out = store.load_app_settings(conn)
@@ -184,9 +190,13 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s_out.ui_theme, "ocean")
         self.assertEqual(s_out.shortcuts_dir, custom)
         self.assertEqual(s_out.grid_cols, 3)
+        self.assertEqual(s_out.deck_cell_px, 56)
         self.assertTrue(s_out.deck_show_hidden_items)
         self.assertEqual(s_out.ui_scale, 1.25)
         self.assertEqual(s_out.deck_primary_action, store.DECK_PRIMARY_LAUNCH)
+        self.assertEqual(
+            s_out.window_startup_placement, store.WINDOW_STARTUP_LAST_POSITION
+        )
 
     def test_app_settings_corrupt_json_uses_defaults(self) -> None:
         conn = store.connect(self.db)
@@ -256,10 +266,26 @@ class StoreTests(unittest.TestCase):
         store.app_kv_set(
             conn,
             "app_settings_v1",
+            '{"appearance_mode":"dark","deck_cell_px":200}',
+        )
+        s_cell = store.load_app_settings(conn)
+        self.assertEqual(s_cell.deck_cell_px, store.DECK_CELL_PX_MAX)
+
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
             '{"appearance_mode":"dark","ui_theme":"not_a_real_theme"}',
         )
         s7 = store.load_app_settings(conn)
         self.assertEqual(s7.ui_theme, themes.default_theme_id())
+
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
+            '{"appearance_mode":"dark","window_startup_placement":"nope"}',
+        )
+        s8 = store.load_app_settings(conn)
+        self.assertEqual(s8.window_startup_placement, store.WINDOW_STARTUP_CENTER)
 
     def test_export_db_to_file(self) -> None:
         conn = store.connect(self.db)
@@ -340,9 +366,11 @@ class StoreTests(unittest.TestCase):
             ui_theme=st_hide.ui_theme,
             shortcuts_dir=st_hide.shortcuts_dir,
             grid_cols=st_hide.grid_cols,
+            deck_cell_px=st_hide.deck_cell_px,
             deck_show_hidden_items=True,
             ui_scale=st_hide.ui_scale,
             deck_primary_action=st_hide.deck_primary_action,
+            window_startup_placement=st_hide.window_startup_placement,
         )
         all_vis = store.list_deck_items(conn, st_show)
         self.assertEqual(len(all_vis), 2)

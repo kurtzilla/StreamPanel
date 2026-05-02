@@ -20,7 +20,7 @@ from streampanel.shortcuts_folder import (
     resolve_shortcuts_dir,
     user_data_dir,
 )
-from streampanel.window_chrome import _stub_dialog
+from streampanel.window_chrome import _stub_dialog, confirm_dialog
 
 
 def _app_version() -> str:
@@ -151,6 +151,59 @@ def open_settings_dialog(
     grid_menu.pack(fill="x", pady=(0, 12))
     grid_menu.set(str(store.clamp_grid_cols(current.grid_cols)))
 
+    cell_labels = [
+        str(n) for n in range(store.DECK_CELL_PX_MIN, store.DECK_CELL_PX_MAX + 1)
+    ]
+    ctk.CTkLabel(outer, text="Deck tile size (pixels)", anchor="w").pack(
+        fill="x", pady=(0, 4)
+    )
+    ctk.CTkLabel(
+        outer,
+        text="Square shortcut buttons on the deck (40–80 pixels).",
+        anchor="w",
+        justify="left",
+        wraplength=440,
+        text_color=("gray75", "gray70"),
+    ).pack(fill="x", pady=(0, 6))
+    cell_menu = ctk.CTkOptionMenu(outer, values=cell_labels)
+    cell_menu.pack(fill="x", pady=(0, 12))
+    cell_menu.set(str(store.clamp_deck_cell_px(current.deck_cell_px)))
+
+    _placement_labels = (
+        "Top center on last display",
+        "Remember last size and position",
+    )
+    _placement_label_for: dict[str, str] = {
+        store.WINDOW_STARTUP_CENTER: _placement_labels[0],
+        store.WINDOW_STARTUP_LAST_POSITION: _placement_labels[1],
+    }
+    _placement_value_for = {
+        _placement_labels[0]: store.WINDOW_STARTUP_CENTER,
+        _placement_labels[1]: store.WINDOW_STARTUP_LAST_POSITION,
+    }
+
+    ctk.CTkLabel(outer, text="When the app starts", anchor="w").pack(
+        fill="x", pady=(0, 4)
+    )
+    ctk.CTkLabel(
+        outer,
+        text="Top center: align the panel to the top center of the display that "
+        "held the window last session. Remember: reopen where you left it "
+        "(still clamped to the work area).",
+        anchor="w",
+        justify="left",
+        wraplength=440,
+        text_color=("gray75", "gray70"),
+    ).pack(fill="x", pady=(0, 6))
+    placement_menu = ctk.CTkOptionMenu(outer, values=list(_placement_labels))
+    placement_menu.pack(fill="x", pady=(0, 12))
+    placement_menu.set(
+        _placement_label_for.get(
+            current.window_startup_placement,
+            _placement_labels[0],
+        )
+    )
+
     show_hidden_var = ctk.BooleanVar(value=current.deck_show_hidden_items)
     ctk.CTkCheckBox(
         outer,
@@ -252,7 +305,12 @@ def open_settings_dialog(
     diag_box.configure(state="disabled")
 
     def copy_diagnostics() -> None:
-        text = _diagnostics_block(current)
+        cx = store.connect()
+        try:
+            s = store.load_app_settings(cx)
+        finally:
+            cx.close()
+        text = _diagnostics_block(s)
         try:
             win.clipboard_clear()
             win.clipboard_append(text)
@@ -265,6 +323,49 @@ def open_settings_dialog(
     ctk.CTkButton(outer, text="Copy diagnostics to clipboard", command=copy_diagnostics).pack(
         fill="x", pady=(0, 4)
     )
+
+    def reset_to_defaults() -> None:
+        if not confirm_dialog(
+            win,
+            "Reset settings",
+            "Reset every preference in this dialog to its factory defaults? "
+            "Your database and shortcut files are not deleted.",
+            confirm_text="Reset",
+        ):
+            return
+        d = store.default_app_settings()
+        c2 = store.connect()
+        try:
+            store.save_app_settings(c2, d)
+        finally:
+            c2.close()
+        if on_saved is not None:
+            on_saved(d)
+        appearance_menu.set(d.appearance_mode)
+        theme_menu.set(themes.THEME_LABELS[themes.clamp_theme_id(d.ui_theme)])
+        nearest_d = store.nearest_ui_scale_preset_value(d.ui_scale)
+        scale_lbl_d = next(
+            lbl for lbl, v in store.UI_SCALE_PRESETS if v == nearest_d
+        )
+        scale_menu.set(scale_lbl_d)
+        path_entry.delete(0, "end")
+        grid_menu.set(str(store.clamp_grid_cols(d.grid_cols)))
+        cell_menu.set(str(store.clamp_deck_cell_px(d.deck_cell_px)))
+        show_hidden_var.set(d.deck_show_hidden_items)
+        primary_menu.set(
+            _primary_label_for.get(d.deck_primary_action, _primary_labels[0])
+        )
+        placement_menu.set(
+            _placement_label_for.get(
+                d.window_startup_placement, _placement_labels[0]
+            )
+        )
+        diag_body2 = _diagnostics_block(d)
+        diag_box.configure(state="normal")
+        diag_box.delete("1.0", "end")
+        diag_box.insert("1.0", diag_body2)
+        diag_box.configure(state="disabled")
+        _stub_dialog(win, "Settings reset", "All preferences were restored to defaults.")
 
     btn_row = ctk.CTkFrame(outer, fg_color="transparent")
     btn_row.pack(fill="x", pady=(16, 0))
@@ -318,24 +419,43 @@ def open_settings_dialog(
         theme_label = theme_menu.get()
         ui_theme = label_to_theme.get(theme_label, themes.default_theme_id())
 
+        try:
+            deck_cell_px = int(cell_menu.get())
+        except ValueError:
+            deck_cell_px = store.default_app_settings().deck_cell_px
+        deck_cell_px = store.clamp_deck_cell_px(deck_cell_px)
+
+        plab2 = placement_menu.get()
+        window_startup_placement = _placement_value_for.get(
+            plab2, store.WINDOW_STARTUP_CENTER
+        )
+
         settings = store.AppSettings(
             appearance_mode=appearance_mode,
             ui_theme=ui_theme,
             shortcuts_dir=shortcuts_dir,
             grid_cols=grid_cols,
+            deck_cell_px=deck_cell_px,
             deck_show_hidden_items=bool(show_hidden_var.get()),
             ui_scale=ui_scale,
             deck_primary_action=deck_primary_action,
+            window_startup_placement=window_startup_placement,
         )
         c2 = store.connect()
         try:
             store.save_app_settings(c2, settings)
         finally:
             c2.close()
-        dismiss()
         if on_saved is not None:
             on_saved(settings)
+        dismiss()
 
+    ctk.CTkButton(
+        btn_row,
+        text="Reset to defaults…",
+        command=reset_to_defaults,
+        width=140,
+    ).pack(side="left")
     ctk.CTkButton(btn_row, text="Cancel", command=dismiss, width=100).pack(
         side="right", padx=(8, 0)
     )

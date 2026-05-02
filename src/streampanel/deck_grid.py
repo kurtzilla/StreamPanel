@@ -1,4 +1,4 @@
-"""Deck grid: sort_order-major cells, optional extra ghost row when the shell is near max height."""
+"""Deck grid: sort_order-major cells; partial row ends with ``+`` ghost add slots."""
 
 from __future__ import annotations
 
@@ -8,15 +8,16 @@ from typing import Callable
 import customtkinter as ctk
 
 _DRAG_THRESHOLD_PX = 8
-_CELL_ICON_PX = 24
+_CELL_ICON_PX = 22
 
 from streampanel import themes
 from streampanel.icon_image import load_ctk_image_for_path
 from streampanel.panel_layout import (
+    DEFAULT_DECK_CELL_PX,
     DEFAULT_GRID_COLS,
-    ROW_H,
     content_rows,
-    max_panel_height,
+    deck_column_footprint,
+    deck_row_h,
 )
 from streampanel.store import DeckItem, clamp_grid_cols
 
@@ -42,43 +43,15 @@ def item_matches_search(item: DeckItem, query: str) -> bool:
     return q in label or q in stem or q in path_l
 
 
-def _ghost_style() -> dict[str, object]:
-    pal = themes.current_palette()
-    return dict(
-        corner_radius=8,
-        fg_color=pal.ghost_cell,
-        hover_color=pal.ghost_cell_hover,
-        font=ctk.CTkFont(size=12),
-        height=ROW_H - 8,
-    )
-
-
-def _cell_style() -> dict[str, object]:
-    pal = themes.current_palette()
-    return dict(
-        corner_radius=8,
-        fg_color=pal.deck_cell,
-        hover_color=pal.deck_cell_hover,
-        font=ctk.CTkFont(size=12),
-        height=ROW_H - 8,
-        anchor="center",
-    )
-
-
-def _try_cell_icon(item: DeckItem) -> ctk.CTkImage | None:
-    if not item.icon_path:
-        return None
-    return load_ctk_image_for_path(item.icon_path, size_px=_CELL_ICON_PX)
-
-
 class DeckGridView:
-    """Renders deck items in a fixed column count; optional bottom ghost row for add."""
+    """Renders deck items in a fixed column count; ``+`` ghosts only in the last partial row."""
 
     def __init__(
         self,
         parent: ctk.CTkFrame,
         *,
         cols: int = DEFAULT_GRID_COLS,
+        cell_px: int = DEFAULT_DECK_CELL_PX,
         on_item_primary: Callable[[DeckItem], None],
         on_item_edit: Callable[[DeckItem], None],
         on_add: Callable[[], None],
@@ -94,12 +67,10 @@ class DeckGridView:
         self._on_double = on_item_double_click
         self._items: list[DeckItem] = []
         self._cols = clamp_grid_cols(cols)
+        self._cell_px = int(cell_px)
         self._deck = ctk.CTkFrame(parent, fg_color="transparent")
         self._rows_host = ctk.CTkFrame(self._deck, fg_color="transparent")
-        self._rows_host.pack(fill="x", expand=True)
-        self._extra_row = ctk.CTkFrame(self._deck, fg_color="transparent", height=ROW_H)
-        self._extra_row.pack_propagate(False)
-        self._pack_extra = False
+        self._rows_host.pack(anchor="n")
         self._press: tuple[int, int, int, DeckItem] | None = None
         self._dragging = False
         self._defer_after_id: int | None = None
@@ -110,8 +81,43 @@ class DeckGridView:
     def widget(self) -> ctk.CTkFrame:
         return self._deck
 
+    def _row_h(self) -> int:
+        return deck_row_h(self._cell_px)
+
+    def _col_fp(self) -> int:
+        return deck_column_footprint(self._cell_px)
+
+    def _ghost_style(self) -> dict[str, object]:
+        pal = themes.current_palette()
+        cp = self._cell_px
+        return dict(
+            corner_radius=8,
+            fg_color=pal.ghost_cell,
+            hover_color=pal.ghost_cell_hover,
+            font=ctk.CTkFont(size=12),
+            width=cp,
+            height=cp,
+        )
+
+    def _cell_style(self) -> dict[str, object]:
+        pal = themes.current_palette()
+        cp = self._cell_px
+        return dict(
+            corner_radius=8,
+            fg_color=pal.deck_cell,
+            hover_color=pal.deck_cell_hover,
+            font=ctk.CTkFont(size=11),
+            width=cp,
+            height=cp,
+            anchor="center",
+        )
+
     def set_cols(self, n: int) -> None:
         self._cols = clamp_grid_cols(n)
+        self.rebuild(self._items)
+
+    def set_cell_px(self, cell_px: int) -> None:
+        self._cell_px = int(cell_px)
         self.rebuild(self._items)
 
     def set_primary_interaction(
@@ -144,6 +150,11 @@ class DeckGridView:
             self._on_primary(item)
 
         self._defer_after_id = int(top.after(self._primary_delay_ms, fire))
+
+    def _try_cell_icon(self, item: DeckItem) -> ctk.CTkImage | None:
+        if not item.icon_path:
+            return None
+        return load_ctk_image_for_path(item.icon_path, size_px=_CELL_ICON_PX)
 
     def _index_under_xy(self, x_root: int, y_root: int) -> int | None:
         top = self._deck.winfo_toplevel()
@@ -246,25 +257,34 @@ class DeckGridView:
         for w in self._rows_host.winfo_children():
             w.destroy()
         rows = content_rows(len(self._items), self._cols)
-        ghost = _ghost_style()
-        cell = _cell_style()
+        ghost = self._ghost_style()
+        cell = self._cell_style()
+        cp = self._cell_px
+        col_fp = self._col_fp()
+        row_inner_w = self._cols * col_fp
+        rh = self._row_h()
         for r in range(rows):
-            row_f = ctk.CTkFrame(self._rows_host, fg_color="transparent", height=ROW_H)
-            row_f.pack(fill="x", pady=(0, 4))
+            row_f = ctk.CTkFrame(
+                self._rows_host,
+                fg_color="transparent",
+                height=rh,
+                width=row_inner_w,
+            )
+            row_f.pack(anchor="n", pady=(0, 4))
             row_f.pack_propagate(False)
             for c in range(self._cols):
-                row_f.grid_columnconfigure(c, weight=1, uniform="deckcell")
+                row_f.grid_columnconfigure(c, weight=0, minsize=col_fp)
                 idx = r * self._cols + c
                 if idx < len(self._items):
                     it = self._items[idx]
                     label = item_display_label(it)
-                    icon = _try_cell_icon(it)
+                    icon = self._try_cell_icon(it)
                     if icon is not None:
                         self._cell_image_refs.append(icon)
                     btn_kw: dict[str, object] = {**cell}
                     if icon is not None:
                         btn_kw["image"] = icon
-                        btn_kw["compound"] = "left"
+                        btn_kw["compound"] = "top"
                     use_press_release = (
                         self._on_reorder is not None
                         or self._primary_delay_ms > 0
@@ -274,6 +294,7 @@ class DeckGridView:
                         b = ctk.CTkButton(
                             row_f,
                             text=label,
+                            wraplength=max(8, cp - 6),
                             **btn_kw,
                         )
                         setattr(b, "_streampanel_deck_idx", idx)
@@ -305,10 +326,11 @@ class DeckGridView:
                         b = ctk.CTkButton(
                             row_f,
                             text=label,
+                            wraplength=max(8, cp - 6),
                             command=lambda i=it: self._on_primary(i),
                             **btn_kw,
                         )
-                    b.grid(row=0, column=c, sticky="nsew", padx=4, pady=2)
+                    b.grid(row=0, column=c, sticky="", padx=4, pady=2)
 
                     def on_right(_e: object, i: DeckItem = it) -> str:
                         self._on_edit(i)
@@ -321,26 +343,4 @@ class DeckGridView:
                         text="+",
                         command=self._on_add,
                         **ghost,
-                    ).grid(row=0, column=c, sticky="nsew", padx=4, pady=2)
-        for w in self._extra_row.winfo_children():
-            w.destroy()
-        for c in range(self._cols):
-            self._extra_row.grid_columnconfigure(c, weight=1, uniform="deckextra")
-            ctk.CTkButton(
-                self._extra_row,
-                text="+ add",
-                command=self._on_add,
-                **_ghost_style(),
-            ).grid(row=0, column=c, sticky="nsew", padx=4, pady=2)
-        self._extra_row.pack_forget()
-        self._pack_extra = False
-
-    def sync_extra_row(self, root_height_px: int, item_count: int) -> None:
-        hi = max_panel_height(item_count, self._cols)
-        show = root_height_px >= hi - 20
-        if show and not self._pack_extra:
-            self._extra_row.pack(fill="x", pady=(4, 0))
-            self._pack_extra = True
-        elif not show and self._pack_extra:
-            self._extra_row.pack_forget()
-            self._pack_extra = False
+                    ).grid(row=0, column=c, sticky="", padx=4, pady=2)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import customtkinter as ctk
 
-from streampanel import store, themes
+from streampanel import single_instance, store, themes, win_monitors
 from streampanel.add_link_dialog import open_add_link_dialog
 from streampanel.panel_dnd import install_panel_drop_handlers
 from streampanel.channels_view import open_channels_for_item
@@ -15,24 +15,26 @@ from streampanel.item_editor import open_item_editor
 from streampanel.item_launch import try_launch_deck_item
 from streampanel.settings_dialog import open_settings_dialog
 from streampanel.panel_layout import (
-    MIN_PANEL_WIDTH,
+    cap_shell_width_excess,
     clamp_root_geometry,
+    deck_intrinsic_width,
     max_panel_height,
     min_panel_height,
+    min_panel_width,
 )
 from streampanel.shortcuts_folder import (
     PortableDataDirError,
     resolve_shortcuts_dir,
     user_data_dir,
 )
-from streampanel.win_overlay import apply_tool_window_overlay
+from streampanel.win_overlay import apply_tool_window_overlay, set_tool_window_excluded
 from streampanel.window_chrome import (
     _stub_dialog,
     apply_borderless_chrome,
     refresh_chrome_theme,
 )
 
-_SUBTITLE_WRAP_BASE = 430
+_FILTER_ENTRY_WIDTH_BASE = 200
 
 
 def _apply_ui_scale(scale: float) -> None:
@@ -47,21 +49,20 @@ def _count_hidden(all_items: list[store.DeckItem], settings: store.AppSettings) 
     return sum(1 for it in all_items if store.item_hidden_from_deck(it))
 
 
-def _sync_subtitle(n_db: int, n_hidden: int, sync: store.SyncResult, shortcuts: object) -> str:
-    lines = [
-        f"{n_db} shortcut(s) in DB — sync +{len(sync.added_paths)} / −{len(sync.removed_ids)}.",
-        f"Shortcuts folder:\n{shortcuts}",
+def _footer_status_line(n_db: int, n_hidden: int, sync: store.SyncResult) -> str:
+    """One-line summary for the footer under the deck (no folder path)."""
+    parts = [
+        f"{n_db} in DB",
+        f"sync +{len(sync.added_paths)}/−{len(sync.removed_ids)}",
     ]
     if n_hidden > 0:
-        lines.append(
-            f'{n_hidden} hidden from deck (enable "Show items hidden from deck on the grid" in Settings).'
-        )
-    return "\n".join(lines)
+        parts.append(f"{n_hidden} hidden")
+    return " · ".join(parts)
 
 
 def run() -> None:
     try:
-        user_data_dir()
+        data_root = user_data_dir()
     except PortableDataDirError as e:
         d = store.default_app_settings()
         ctk.set_appearance_mode(d.appearance_mode)
@@ -72,6 +73,8 @@ def run() -> None:
         _stub_dialog(err_root, "StreamPanel data folder", str(e))
         err_root.destroy()
         return
+
+    single_instance.acquire_or_exit(data_dir=data_root)
 
     conn = store.connect()
     try:
@@ -97,15 +100,22 @@ def run() -> None:
     items_ref: list[list[store.DeckItem]] = [visible]
     search_ref: list[str] = [""]
     n_ref = [0]
-    subtitle = _sync_subtitle(
+    footer_line = _footer_status_line(
         len(all_items),
         _count_hidden(all_items, app_settings),
         sync,
-        shortcuts,
     )
 
     shell_state: dict[str, bool] = {"top": shell.always_on_top}
-    min_h = min_panel_height(len(visible), grid_cols_ref[0])
+    deck_cell_px_ref: list[int] = [app_settings.deck_cell_px]
+    min_h = min_panel_height(len(visible), grid_cols_ref[0], deck_cell_px_ref[0])
+    max_h0 = max_panel_height(len(visible), grid_cols_ref[0], deck_cell_px_ref[0])
+    min_w0 = min_panel_width(len(visible), grid_cols_ref[0], deck_cell_px_ref[0])
+    mons0 = win_monitors.list_work_monitors(None)
+    _ml, _mt, mr, _mb = win_monitors.virtual_desktop_span(mons0)
+    virtual_span_w = max(1, mr - _ml)
+
+    intrinsic_w0 = deck_intrinsic_width(grid_cols_ref[0], deck_cell_px_ref[0])
 
     if (
         shell.w is not None
@@ -113,11 +123,46 @@ def run() -> None:
         and shell.x is not None
         and shell.y is not None
     ):
-        root.geometry(f"{shell.w}x{shell.h}+{shell.x}+{shell.y}")
+        w_use = cap_shell_width_excess(
+            win_monitors.sanitize_restored_shell_width(
+                shell.w, virtual_span_w, min_w0
+            ),
+            min_w0,
+            intrinsic_w0,
+        )
+        h_use = max(min_h, min(shell.h, max_h0))
+        mon = win_monitors.monitor_for_panel_center(
+            shell.x, shell.y, w_use, h_use, mons0
+        )
+        if app_settings.window_startup_placement == store.WINDOW_STARTUP_LAST_POSITION:
+            x_in, y_in = shell.x, shell.y
+        else:
+            x_in = win_monitors.top_center_x(mon, w_use)
+            y_in = mon.top
+        x0, y0, w1, h1 = clamp_root_geometry(
+            x_in,
+            y_in,
+            w_use,
+            h_use,
+            vroot_x=mon.left,
+            vroot_y=mon.top,
+            vroot_w=mon.width,
+            vroot_h=mon.height,
+            max_w=mon.width,
+            min_w=min_w0,
+            min_h=min_h,
+            max_h=min(max_h0, mon.height),
+        )
+        root.geometry(f"{w1}x{h1}+{x0}+{y0}")
     else:
-        root.geometry("600x220")
+        m0 = win_monitors.primary_or_first(mons0)
+        x0 = m0.left + max(0, (m0.width - min_w0) // 2)
+        y0 = m0.top
+        h0 = max(min_h, 220)
+        h0 = min(h0, max_h0, m0.height)
+        root.geometry(f"{min_w0}x{h0}+{x0}+{y0}")
 
-    root.minsize(MIN_PANEL_WIDTH, min_h)
+    root.minsize(min_w0, min_h)
 
     debounce_id: list[int | None] = [None]
 
@@ -172,36 +217,71 @@ def run() -> None:
 
     def flush_layout_and_persist() -> None:
         debounce_id[0] = None
-        min_h2 = min_panel_height(n_ref[0], grid_cols_ref[0])
-        max_h2 = max_panel_height(n_ref[0], grid_cols_ref[0])
-        sw = root.winfo_screenwidth()
-        vx, vy = root.winfo_vrootx(), root.winfo_vrooty()
-        vw, vh = root.winfo_vrootwidth(), root.winfo_vrootheight()
+        root.update_idletasks()
+        min_h2 = min_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+        max_h2 = max_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+        mons = win_monitors.list_work_monitors(root)
         x, y = root.winfo_x(), root.winfo_y()
         w, h = root.winfo_width(), root.winfo_height()
+        min_w2 = min_panel_width(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+        intrinsic_deck = deck_intrinsic_width(grid_cols_ref[0], deck_cell_px_ref[0])
+        try:
+            not_mapped = int(root.winfo_viewable()) == 0
+        except Exception:
+            not_mapped = False
+        if not_mapped or w < max(40, min_w2 // 2) or h < max(40, min_h2 // 2):
+            m0 = win_monitors.primary_or_first(mons)
+            root.minsize(min_w2, min_h2)
+            root.maxsize(m0.width, min(max_h2, m0.height))
+            return
+        w_before_cap = w
+        w = cap_shell_width_excess(w, min_w2, intrinsic_deck)
+        mon = win_monitors.monitor_for_panel_center(x, y, w, h, mons)
+        max_h_cap = min(max_h2, mon.height)
+        if w != w_before_cap and y == mon.top:
+            x = win_monitors.top_center_x(mon, w)
         x, y, w, h = clamp_root_geometry(
             x,
             y,
             w,
             h,
-            vroot_x=vx,
-            vroot_y=vy,
-            vroot_w=vw,
-            vroot_h=vh,
-            max_w=sw,
-            min_w=MIN_PANEL_WIDTH,
+            vroot_x=mon.left,
+            vroot_y=mon.top,
+            vroot_w=mon.width,
+            vroot_h=mon.height,
+            max_w=mon.width,
+            min_w=min_w2,
             min_h=min_h2,
-            max_h=max_h2,
+            max_h=max_h_cap,
         )
         root.geometry(f"{w}x{h}+{x}+{y}")
-        root.maxsize(sw, max_h2)
-        root.minsize(MIN_PANEL_WIDTH, min_h2)
-        dg = deck_grid_holder[0]
-        if dg is not None:
-            dg.sync_extra_row(root.winfo_height(), n_ref[0])
+        root.maxsize(mon.width, max_h_cap)
+        root.minsize(min_w2, min_h2)
+        if len(mons) > 1:
+            try:
+                idx = next(
+                    i
+                    for i, t in enumerate(mons)
+                    if (t.left, t.top, t.right, t.bottom)
+                    == (mon.left, mon.top, mon.right, mon.bottom)
+                )
+            except StopIteration:
+                idx = 0
+            raw = getattr(root, "_streampanel_chrome", None)
+            if isinstance(raw, dict):
+                mbs = raw.get("monitor_buttons")
+                if mbs:
+                    pal = themes.current_palette()
+                    for i, b in enumerate(mbs):
+                        if i == idx:
+                            b.configure(fg_color=pal.strip_button_hover)
+                        else:
+                            b.configure(fg_color="transparent")
         persist_now()
 
-    subtitle_lbl_holder: list[ctk.CTkLabel | None] = [None]
+    footer_status_holder: list[ctk.CTkLabel | None] = [None]
+    filter_title_holder: list[ctk.CTkLabel | None] = [None]
+    search_entry_holder: list[ctk.CTkEntry | None] = [None]
 
     def on_deck_double_click(it: store.DeckItem) -> None:
         try_launch_deck_item(root, it)
@@ -233,7 +313,7 @@ def run() -> None:
 
     def reload_deck() -> None:
         dg = deck_grid_holder[0]
-        lbl = subtitle_lbl_holder[0]
+        lbl = footer_status_holder[0]
         if dg is None or lbl is None:
             return
         st = app_settings_ref[0]
@@ -245,11 +325,10 @@ def run() -> None:
         finally:
             c.close()
         lbl.configure(
-            text=_sync_subtitle(
+            text=_footer_status_line(
                 len(all_items),
                 _count_hidden(all_items, st),
                 sy,
-                shortcuts_ref[0],
             )
         )
         apply_deck_filter()
@@ -282,15 +361,26 @@ def run() -> None:
         themes.apply_theme(settings.ui_theme, settings.appearance_mode)
         refresh_chrome_theme(root)
         grid_cols_ref[0] = settings.grid_cols
+        deck_cell_px_ref[0] = settings.deck_cell_px
         dg = deck_grid_holder[0]
         if dg is not None:
             dg.set_cols(settings.grid_cols)
+            dg.set_cell_px(settings.deck_cell_px)
         reload_deck()
-        lbl = subtitle_lbl_holder[0]
-        if lbl is not None:
-            lbl.configure(
-                wraplength=int(_SUBTITLE_WRAP_BASE * store.clamp_ui_scale(settings.ui_scale))
+        root.update_idletasks()
+        fs = footer_status_holder[0]
+        if fs is not None:
+            fs.configure(text_color=themes.current_palette().drag_hint_text)
+        se = search_entry_holder[0]
+        if se is not None:
+            se.configure(
+                width=int(
+                    _FILTER_ENTRY_WIDTH_BASE * store.clamp_ui_scale(settings.ui_scale)
+                )
             )
+        ft = filter_title_holder[0]
+        if ft is not None:
+            ft.configure(text_color=themes.current_palette().drag_hint_text)
 
     def on_settings() -> None:
         open_settings_dialog(root, on_saved=on_applied)
@@ -329,55 +419,70 @@ def run() -> None:
             c.close()
         reload_deck()
 
+    def _top_rail_snap(px: int, x: int, y: int, w: int, h: int) -> tuple[int, int]:
+        return win_monitors.snap_top_rail(
+            x,
+            y,
+            w,
+            h,
+            win_monitors.list_work_monitors(root),
+            pointer_x=px,
+        )
+
+    def _on_monitor_menu(choice: str) -> None:
+        def _apply_monitor_move() -> None:
+            mons = win_monitors.list_work_monitors(root)
+            idx = win_monitors.parse_display_choice(str(choice), len(mons))
+            if idx is None:
+                return
+            m = mons[idx]
+            root.update_idletasks()
+            w, h = root.winfo_width(), root.winfo_height()
+            min_w2 = min_panel_width(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+            min_h2 = min_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+            max_h2 = max_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+            try:
+                not_mapped = int(root.winfo_viewable()) == 0
+            except Exception:
+                not_mapped = False
+            if not_mapped or w < max(40, min_w2 // 2) or h < max(40, min_h2 // 2):
+                w, h = min_w2, min_h2
+            w = max(min_w2, min(w, m.width))
+            h = min(max(min_h2, h), max_h2, m.height)
+            x = win_monitors.top_center_x(m, w)
+            y = m.top
+            root.geometry(f"{w}x{h}+{x}+{y}")
+            flush_layout_and_persist()
+
+        root.after(0, _apply_monitor_move)
+
+    mon_labels = [f"Display {i + 1}" for i in range(len(mons0))]
+
     body = apply_borderless_chrome(
         root,
         always_on_top=shell_state["top"],
         on_pin_toggled=on_pin_toggled,
         on_settings=on_settings,
-        on_add_link=on_add_link,
         on_close=on_close,
+        top_rail_snap=_top_rail_snap,
+        monitor_values=mon_labels if len(mons0) > 1 else None,
+        on_monitor_selected=_on_monitor_menu if len(mons0) > 1 else None,
     )
 
     inner = ctk.CTkFrame(body, fg_color="transparent")
     inner.pack(expand=True, fill="both", padx=20, pady=16)
+    inner.grid_columnconfigure(0, weight=1)
+    inner.grid_columnconfigure(1, weight=0)
+    inner.grid_columnconfigure(2, weight=1)
+    inner.grid_rowconfigure(0, weight=1)
 
-    ctk.CTkLabel(
-        inner,
-        text="Status",
-        font=ctk.CTkFont(size=16, weight="bold"),
-        anchor="w",
-    ).pack(fill="x", pady=(0, 6))
-    subtitle_lbl = ctk.CTkLabel(
-        inner,
-        text=subtitle,
-        wraplength=int(_SUBTITLE_WRAP_BASE * store.clamp_ui_scale(app_settings.ui_scale)),
-        justify="left",
-        anchor="w",
-    )
-    subtitle_lbl.pack(fill="x", pady=(0, 8))
-    subtitle_lbl_holder[0] = subtitle_lbl
-
-    search_row = ctk.CTkFrame(inner, fg_color="transparent")
-    search_row.pack(fill="x", pady=(0, 8))
-    search_row.grid_columnconfigure(1, weight=1)
-    ctk.CTkLabel(search_row, text="Filter deck", anchor="w").grid(
-        row=0, column=0, padx=(0, 8), sticky="w"
-    )
-    search_entry = ctk.CTkEntry(
-        search_row,
-        placeholder_text="Substring matches label or path…",
-    )
-    search_entry.grid(row=0, column=1, sticky="ew")
-
-    def on_search_change(_event: object | None = None) -> None:
-        search_ref[0] = search_entry.get()
-        apply_deck_filter()
-
-    search_entry.bind("<KeyRelease>", on_search_change)
+    deck_center_slot = ctk.CTkFrame(inner, fg_color="transparent")
+    deck_center_slot.grid(row=0, column=1, sticky="n")
 
     deck_grid_holder[0] = DeckGridView(
-        inner,
+        deck_center_slot,
         cols=grid_cols_ref[0],
+        cell_px=deck_cell_px_ref[0],
         on_item_primary=on_item_primary,
         on_item_edit=on_item_edit,
         on_add=on_add_link,
@@ -394,7 +499,53 @@ def run() -> None:
         ),
     )
     apply_deck_filter()
-    deck_grid_holder[0].widget.pack(fill="both", expand=True)
+    deck_grid_holder[0].widget.pack(anchor="n", pady=(0, 6))
+
+    footer = ctk.CTkFrame(inner, fg_color="transparent")
+    footer.grid(row=1, column=0, columnspan=3, sticky="ew")
+    footer.grid_columnconfigure(0, weight=0)
+    footer.grid_columnconfigure(1, weight=1)
+
+    _fpal = themes.current_palette()
+    filter_fr = ctk.CTkFrame(footer, fg_color="transparent")
+    filter_fr.grid(row=0, column=0, sticky="w")
+    filter_title = ctk.CTkLabel(
+        filter_fr,
+        text="Filter",
+        font=ctk.CTkFont(size=12),
+        text_color=_fpal.drag_hint_text,
+        anchor="e",
+    )
+    filter_title.pack(side="left", padx=(0, 6))
+    filter_title_holder[0] = filter_title
+    search_entry = ctk.CTkEntry(
+        filter_fr,
+        placeholder_text="Label or path…",
+        width=int(
+            _FILTER_ENTRY_WIDTH_BASE * store.clamp_ui_scale(app_settings.ui_scale)
+        ),
+        height=28,
+        font=ctk.CTkFont(size=12),
+    )
+    search_entry.pack(side="left")
+    search_entry_holder[0] = search_entry
+
+    status_footer = ctk.CTkLabel(
+        footer,
+        text=footer_line,
+        font=ctk.CTkFont(size=12),
+        text_color=_fpal.drag_hint_text,
+        anchor="e",
+        justify="right",
+    )
+    status_footer.grid(row=0, column=1, sticky="ew", padx=(10, 0))
+    footer_status_holder[0] = status_footer
+
+    def on_search_change(_event: object | None = None) -> None:
+        search_ref[0] = search_entry.get()
+        apply_deck_filter()
+
+    search_entry.bind("<KeyRelease>", on_search_change)
 
     def on_configure(event: object) -> None:
         ev = event  # type: ignore[assignment]
@@ -404,8 +555,38 @@ def run() -> None:
 
     root.bind("<Configure>", on_configure)
 
+    def _root_focus_in(_event: object | None = None) -> None:
+        # Modal CTkToplevels use a different toplevel; while they have focus the main
+        # window may not show a taskbar button (acceptable until we track transients).
+        set_tool_window_excluded(root, False)
+
+    def _root_focus_out(_event: object | None = None) -> None:
+        def maybe_exclude() -> None:
+            try:
+                w = root.focus_get()
+            except Exception:
+                w = None
+            if w is None:
+                set_tool_window_excluded(root, True)
+                return
+            try:
+                if w.winfo_toplevel() is root:
+                    return
+            except Exception:
+                pass
+            set_tool_window_excluded(root, True)
+
+        root.after_idle(maybe_exclude)
+
+    root.bind("<FocusIn>", _root_focus_in)
+    root.bind("<FocusOut>", _root_focus_out)
+
     root.after_idle(lambda: root.after(0, flush_layout_and_persist))
-    root.after(100, lambda: apply_tool_window_overlay(root))
+    def _post_map_shell() -> None:
+        single_instance.register_main_window_hwnd(root, data_root)
+        apply_tool_window_overlay(root)
+
+    root.after(100, _post_map_shell)
 
     install_panel_drop_handlers(
         root,

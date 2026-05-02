@@ -131,6 +131,10 @@ _APPEARANCE_MODES = frozenset(APPEARANCE_MODES)
 GRID_COLS_MIN = 2
 GRID_COLS_MAX = 8
 
+UI_SCALE_MIN = 0.85
+UI_SCALE_MAX = 1.75
+UI_SCALE_DEFAULT = 1.0
+
 
 def app_kv_get(conn: sqlite3.Connection, key: str) -> str | None:
     cur = conn.cursor()
@@ -213,6 +217,7 @@ class AppSettings:
     shortcuts_dir: Path | None
     grid_cols: int
     deck_show_hidden_items: bool
+    ui_scale: float
 
 
 def default_app_settings() -> AppSettings:
@@ -221,11 +226,31 @@ def default_app_settings() -> AppSettings:
         shortcuts_dir=None,
         grid_cols=DEFAULT_GRID_COLS,
         deck_show_hidden_items=False,
+        ui_scale=UI_SCALE_DEFAULT,
     )
 
 
 def clamp_grid_cols(n: int) -> int:
     return max(GRID_COLS_MIN, min(GRID_COLS_MAX, n))
+
+
+def clamp_ui_scale(x: float) -> float:
+    return max(UI_SCALE_MIN, min(UI_SCALE_MAX, float(x)))
+
+
+# Preset labels for Settings (values must stay within ``clamp_ui_scale`` bounds).
+UI_SCALE_PRESETS: tuple[tuple[str, float], ...] = (
+    ("100%", 1.0),
+    ("110%", 1.1),
+    ("125%", 1.25),
+    ("150%", 1.5),
+)
+
+
+def nearest_ui_scale_preset_value(x: float) -> float:
+    """Pick the closest preset so the menu always reflects a valid choice."""
+    x = clamp_ui_scale(x)
+    return min((v for _, v in UI_SCALE_PRESETS), key=lambda p: abs(p - x))
 
 
 def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
@@ -257,11 +282,22 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
     elif raw_dh is False:
         deck_show_hidden_items = False
 
+    ui_scale = base.ui_scale
+    raw_us = data.get("ui_scale")
+    if isinstance(raw_us, bool):
+        pass
+    elif isinstance(raw_us, (int, float)):
+        try:
+            ui_scale = clamp_ui_scale(float(raw_us))
+        except (TypeError, ValueError, OverflowError):
+            ui_scale = base.ui_scale
+
     return AppSettings(
         appearance_mode=appearance_mode,
         shortcuts_dir=shortcuts_dir,
         grid_cols=grid_cols,
         deck_show_hidden_items=deck_show_hidden_items,
+        ui_scale=ui_scale,
     )
 
 
@@ -287,6 +323,7 @@ def save_app_settings(conn: sqlite3.Connection, settings: AppSettings) -> None:
         "shortcuts_dir": sd,
         "grid_cols": settings.grid_cols,
         "deck_show_hidden_items": settings.deck_show_hidden_items,
+        "ui_scale": settings.ui_scale,
     }
     app_kv_set(
         conn,
@@ -464,6 +501,31 @@ def update_item(
     )
     conn.commit()
     return True
+
+
+def export_db_to_file(dest: Path, *, source: Path | None = None) -> None:
+    """Copy the SQLite database to ``dest`` using the SQLite backup API (consistent snapshot)."""
+    src_path = Path(source if source is not None else default_db_path())
+    out = Path(dest).expanduser()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if not src_path.is_file():
+        raise FileNotFoundError(str(src_path))
+    resolved_src = src_path.resolve()
+    resolved_out = out.resolve()
+    if resolved_out == resolved_src:
+        raise ValueError("Destination must differ from the source database path.")
+    if out.exists():
+        out.unlink()
+    src_conn = sqlite3.connect(str(src_path))
+    try:
+        dst_conn = sqlite3.connect(str(out))
+        try:
+            src_conn.backup(dst_conn)
+            dst_conn.commit()
+        finally:
+            dst_conn.close()
+    finally:
+        src_conn.close()
 
 
 def reorder_items(conn: sqlite3.Connection, ordered_ids: Iterable[int]) -> None:

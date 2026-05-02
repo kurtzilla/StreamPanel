@@ -1,15 +1,30 @@
-"""Modal settings editor: appearance, shortcuts folder, grid columns."""
+"""Modal settings editor: appearance, UI scale, shortcuts folder, grid columns, data backup."""
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog
 
 import customtkinter as ctk
 
 from streampanel import store
+from streampanel.shortcuts_folder import user_data_dir
 from streampanel.window_chrome import COLOR_BG, _stub_dialog
+
+
+def _open_user_data_dir() -> None:
+    p = user_data_dir()
+    if sys.platform == "win32":
+        os.startfile(str(p))
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(p)], check=False)
+    else:
+        subprocess.Popen(["xdg-open", str(p)], check=False)
 
 
 def open_settings_dialog(
@@ -25,8 +40,8 @@ def open_settings_dialog(
 
     win = ctk.CTkToplevel(parent)
     win.title("Settings")
-    win.geometry("480x400")
-    win.minsize(420, 360)
+    win.geometry("520x520")
+    win.minsize(440, 460)
     win.transient(parent)
     win.configure(fg_color=COLOR_BG)
     win.attributes("-topmost", True)
@@ -40,6 +55,18 @@ def open_settings_dialog(
     appearance_menu = ctk.CTkOptionMenu(outer, values=list(store.APPEARANCE_MODES))
     appearance_menu.pack(fill="x", pady=(0, 12))
     appearance_menu.set(current.appearance_mode)
+
+    preset_labels = [lbl for lbl, _ in store.UI_SCALE_PRESETS]
+    preset_by_label = {lbl: v for lbl, v in store.UI_SCALE_PRESETS}
+    nearest = store.nearest_ui_scale_preset_value(current.ui_scale)
+    initial_scale_label = next(
+        lbl for lbl, v in store.UI_SCALE_PRESETS if v == nearest
+    )
+
+    ctk.CTkLabel(outer, text="Interface scale", anchor="w").pack(fill="x", pady=(0, 4))
+    scale_menu = ctk.CTkOptionMenu(outer, values=preset_labels)
+    scale_menu.pack(fill="x", pady=(0, 12))
+    scale_menu.set(initial_scale_label)
 
     ctk.CTkLabel(outer, text="Shortcuts folder (empty = default)", anchor="w").pack(
         fill="x", pady=(0, 4)
@@ -77,7 +104,7 @@ def open_settings_dialog(
     col_labels = [str(n) for n in range(store.GRID_COLS_MIN, store.GRID_COLS_MAX + 1)]
     ctk.CTkLabel(outer, text="Deck columns", anchor="w").pack(fill="x", pady=(0, 4))
     grid_menu = ctk.CTkOptionMenu(outer, values=col_labels)
-    grid_menu.pack(fill="x", pady=(0, 16))
+    grid_menu.pack(fill="x", pady=(0, 12))
     grid_menu.set(str(store.clamp_grid_cols(current.grid_cols)))
 
     show_hidden_var = ctk.BooleanVar(value=current.deck_show_hidden_items)
@@ -85,10 +112,73 @@ def open_settings_dialog(
         outer,
         text="Show items hidden from deck on the grid",
         variable=show_hidden_var,
-    ).pack(anchor="w", pady=(0, 16))
+    ).pack(anchor="w", pady=(0, 12))
+
+    ctk.CTkLabel(outer, text="Data", anchor="w").pack(fill="x", pady=(0, 4))
+    ctk.CTkLabel(
+        outer,
+        text="Export copies the SQLite database only (deck layout, settings, history). "
+        "Shortcut files in your folder are not included.",
+        anchor="w",
+        justify="left",
+        wraplength=440,
+    ).pack(fill="x", pady=(0, 8))
+
+    data_row = ctk.CTkFrame(outer, fg_color="transparent")
+    data_row.pack(fill="x", pady=(0, 12))
+
+    def export_backup() -> None:
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        initial = f"streampanel-backup-{stamp}.db"
+        path = filedialog.asksaveasfilename(
+            parent=win,
+            title="Export database backup",
+            defaultextension=".db",
+            filetypes=[("SQLite database", "*.db"), ("All files", "*.*")],
+            initialfile=initial,
+        )
+        if not path:
+            return
+        dest = Path(path)
+        try:
+            store.export_db_to_file(dest)
+        except FileNotFoundError:
+            _stub_dialog(
+                win,
+                "Backup failed",
+                "The database file was not found. Try restarting the app after a first sync.",
+            )
+        except OSError as e:
+            _stub_dialog(win, "Backup failed", str(e))
+        except ValueError as e:
+            _stub_dialog(win, "Backup failed", str(e))
+        else:
+            _stub_dialog(
+                win,
+                "Backup saved",
+                f"Database copy created:\n{dest}",
+            )
+
+    def open_data_folder() -> None:
+        try:
+            _open_user_data_dir()
+        except OSError as e:
+            _stub_dialog(win, "Could not open folder", str(e))
+
+    ctk.CTkButton(
+        data_row,
+        text="Export database backup…",
+        command=export_backup,
+    ).pack(side="left", padx=(0, 8))
+    ctk.CTkButton(
+        data_row,
+        text="Open user data folder",
+        width=160,
+        command=open_data_folder,
+    ).pack(side="left")
 
     btn_row = ctk.CTkFrame(outer, fg_color="transparent")
-    btn_row.pack(fill="x")
+    btn_row.pack(fill="x", pady=(16, 0))
 
     def dismiss() -> None:
         try:
@@ -126,11 +216,16 @@ def open_settings_dialog(
             grid_cols = store.default_app_settings().grid_cols
         grid_cols = store.clamp_grid_cols(grid_cols)
 
+        scale_label = scale_menu.get()
+        ui_scale = preset_by_label.get(scale_label, store.UI_SCALE_DEFAULT)
+        ui_scale = store.clamp_ui_scale(ui_scale)
+
         settings = store.AppSettings(
             appearance_mode=appearance_mode,
             shortcuts_dir=shortcuts_dir,
             grid_cols=grid_cols,
             deck_show_hidden_items=bool(show_hidden_var.get()),
+            ui_scale=ui_scale,
         )
         c2 = store.connect()
         try:

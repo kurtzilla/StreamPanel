@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -123,6 +124,9 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(store.clamp_grid_cols(1), 2)
         self.assertEqual(store.clamp_grid_cols(99), 8)
         self.assertEqual(store.clamp_grid_cols(4), 4)
+        self.assertEqual(store.clamp_ui_scale(1.0), 1.0)
+        self.assertEqual(store.clamp_ui_scale(0.5), store.UI_SCALE_MIN)
+        self.assertEqual(store.clamp_ui_scale(9.0), store.UI_SCALE_MAX)
 
     def test_app_settings_defaults_when_missing(self) -> None:
         conn = store.connect(self.db)
@@ -132,6 +136,7 @@ class StoreTests(unittest.TestCase):
         self.assertIsNone(s.shortcuts_dir)
         self.assertEqual(s.grid_cols, DEFAULT_GRID_COLS)
         self.assertFalse(s.deck_show_hidden_items)
+        self.assertEqual(s.ui_scale, store.UI_SCALE_DEFAULT)
 
     def test_app_settings_round_trip(self) -> None:
         conn = store.connect(self.db)
@@ -143,6 +148,7 @@ class StoreTests(unittest.TestCase):
             shortcuts_dir=custom,
             grid_cols=3,
             deck_show_hidden_items=True,
+            ui_scale=1.25,
         )
         store.save_app_settings(conn, s_in)
         s_out = store.load_app_settings(conn)
@@ -150,6 +156,7 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s_out.shortcuts_dir, custom)
         self.assertEqual(s_out.grid_cols, 3)
         self.assertTrue(s_out.deck_show_hidden_items)
+        self.assertEqual(s_out.ui_scale, 1.25)
 
     def test_app_settings_corrupt_json_uses_defaults(self) -> None:
         conn = store.connect(self.db)
@@ -158,6 +165,7 @@ class StoreTests(unittest.TestCase):
         s = store.load_app_settings(conn)
         self.assertEqual(s.appearance_mode, "dark")
         self.assertIsNone(s.shortcuts_dir)
+        self.assertEqual(s.ui_scale, store.UI_SCALE_DEFAULT)
 
     def test_app_settings_invalid_values_clamped_or_defaulted(self) -> None:
         conn = store.connect(self.db)
@@ -171,6 +179,7 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s.appearance_mode, "dark")
         self.assertIsNone(s.shortcuts_dir)
         self.assertEqual(s.grid_cols, 8)
+        self.assertEqual(s.ui_scale, store.UI_SCALE_DEFAULT)
 
         store.app_kv_set(
             conn,
@@ -181,6 +190,56 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s2.appearance_mode, "system")
         self.assertEqual(s2.grid_cols, 2)
         self.assertFalse(s2.deck_show_hidden_items)
+
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
+            '{"appearance_mode":"dark","ui_scale":99}',
+        )
+        s3 = store.load_app_settings(conn)
+        self.assertEqual(s3.ui_scale, store.UI_SCALE_MAX)
+
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
+            '{"appearance_mode":"dark","ui_scale":0.01}',
+        )
+        s4 = store.load_app_settings(conn)
+        self.assertEqual(s4.ui_scale, store.UI_SCALE_MIN)
+
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
+            '{"appearance_mode":"dark","ui_scale":"nope"}',
+        )
+        s5 = store.load_app_settings(conn)
+        self.assertEqual(s5.ui_scale, store.UI_SCALE_DEFAULT)
+
+    def test_export_db_to_file(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        p = self.shortcuts / "a.url"
+        p.write_text("[InternetShortcut]\nURL=https://a/\n", encoding="ascii")
+        store.sync_from_folder(conn, self.shortcuts)
+        self.assertEqual(len(store.list_items(conn)), 1)
+        v = int(conn.execute("PRAGMA user_version").fetchone()[0])
+        conn.close()
+
+        backup = self.root / "backup.db"
+        store.export_db_to_file(backup, source=self.db)
+        self.assertTrue(backup.is_file())
+
+        conn2 = sqlite3.connect(str(backup))
+        self.addCleanup(conn2.close)
+        self.assertEqual(
+            int(conn2.execute("PRAGMA user_version").fetchone()[0]),
+            v,
+        )
+        n = int(conn2.execute("SELECT COUNT(*) FROM deck_items").fetchone()[0])
+        self.assertEqual(n, 1)
+
+        with self.assertRaises(ValueError):
+            store.export_db_to_file(self.db, source=self.db)
 
     def test_launch_events_migration_and_record(self) -> None:
         conn = store.connect(self.db)
@@ -220,6 +279,7 @@ class StoreTests(unittest.TestCase):
             shortcuts_dir=st_hide.shortcuts_dir,
             grid_cols=st_hide.grid_cols,
             deck_show_hidden_items=True,
+            ui_scale=st_hide.ui_scale,
         )
         all_vis = store.list_deck_items(conn, st_show)
         self.assertEqual(len(all_vis), 2)

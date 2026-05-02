@@ -22,6 +22,14 @@ from streampanel.shortcuts_folder import resolve_shortcuts_dir
 from streampanel.win_overlay import apply_tool_window_overlay
 from streampanel.window_chrome import apply_borderless_chrome
 
+_SUBTITLE_WRAP_BASE = 430
+
+
+def _apply_ui_scale(scale: float) -> None:
+    s = store.clamp_ui_scale(float(scale))
+    ctk.set_widget_scaling(s)
+    ctk.set_window_scaling(s)
+
 
 def _count_hidden(all_items: list[store.DeckItem], settings: store.AppSettings) -> int:
     if settings.deck_show_hidden_items:
@@ -54,6 +62,7 @@ def run() -> None:
         conn.close()
 
     ctk.set_appearance_mode(app_settings.appearance_mode)
+    _apply_ui_scale(app_settings.ui_scale)
     root = ctk.CTk()
     root.title("StreamPanel")
 
@@ -191,11 +200,17 @@ def run() -> None:
         app_settings_ref[0] = settings
         shortcuts_ref[0] = resolve_shortcuts_dir(settings.shortcuts_dir)
         ctk.set_appearance_mode(settings.appearance_mode)
+        _apply_ui_scale(settings.ui_scale)
         grid_cols_ref[0] = settings.grid_cols
         dg = deck_grid_holder[0]
         if dg is not None:
             dg.set_cols(settings.grid_cols)
         reload_deck()
+        lbl = subtitle_lbl_holder[0]
+        if lbl is not None:
+            lbl.configure(
+                wraplength=int(_SUBTITLE_WRAP_BASE * store.clamp_ui_scale(settings.ui_scale))
+            )
 
     def on_settings() -> None:
         open_settings_dialog(root, on_saved=on_applied)
@@ -232,7 +247,7 @@ def run() -> None:
     subtitle_lbl = ctk.CTkLabel(
         inner,
         text=subtitle,
-        wraplength=430,
+        wraplength=int(_SUBTITLE_WRAP_BASE * store.clamp_ui_scale(app_settings.ui_scale)),
         justify="left",
         anchor="w",
     )

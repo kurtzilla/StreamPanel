@@ -7,6 +7,8 @@ from typing import Callable
 
 import customtkinter as ctk
 
+_DRAG_THRESHOLD_PX = 8
+
 from streampanel.panel_layout import (
     DEFAULT_GRID_COLS,
     ROW_H,
@@ -58,10 +60,12 @@ class DeckGridView:
         on_item_primary: Callable[[DeckItem], None],
         on_item_edit: Callable[[DeckItem], None],
         on_add: Callable[[], None],
+        on_reorder: Callable[[int, int], None] | None = None,
     ) -> None:
         self._on_primary = on_item_primary
         self._on_edit = on_item_edit
         self._on_add = on_add
+        self._on_reorder = on_reorder
         self._items: list[DeckItem] = []
         self._cols = clamp_grid_cols(cols)
         self._deck = ctk.CTkFrame(parent, fg_color="transparent")
@@ -70,6 +74,8 @@ class DeckGridView:
         self._extra_row = ctk.CTkFrame(self._deck, fg_color="transparent", height=ROW_H)
         self._extra_row.pack_propagate(False)
         self._pack_extra = False
+        self._press: tuple[int, int, int, DeckItem] | None = None
+        self._dragging = False
 
     @property
     def widget(self) -> ctk.CTkFrame:
@@ -78,6 +84,76 @@ class DeckGridView:
     def set_cols(self, n: int) -> None:
         self._cols = clamp_grid_cols(n)
         self.rebuild(self._items)
+
+    def _index_under_xy(self, x_root: int, y_root: int) -> int | None:
+        top = self._deck.winfo_toplevel()
+        w = top.winfo_containing(x_root, y_root)
+        while w is not None:
+            idx = getattr(w, "_streampanel_deck_idx", None)
+            if isinstance(idx, int):
+                return idx
+            w = getattr(w, "master", None)
+        return None
+
+    def _on_item_press(self, event: object, idx: int, item: DeckItem) -> None:
+        if self._on_reorder is None:
+            return
+        ev = event  # type: ignore[assignment]
+        self._press = (idx, int(ev.x_root), int(ev.y_root), item)
+        self._dragging = False
+        ev.widget.bind("<B1-Motion>", self._on_item_motion)
+
+    def _on_item_motion(self, event: object) -> None:
+        if self._press is None or self._on_reorder is None:
+            return
+        ev = event  # type: ignore[assignment]
+        idx0, xr0, yr0, _ = self._press
+        dx = int(ev.x_root) - xr0
+        dy = int(ev.y_root) - yr0
+        if dx * dx + dy * dy < _DRAG_THRESHOLD_PX * _DRAG_THRESHOLD_PX:
+            return
+        w = ev.widget
+        w.unbind("<B1-Motion>")
+        self._dragging = True
+        self._deck.grab_set()
+        self._deck.bind("<B1-Motion>", self._on_drag_motion)
+        self._deck.bind("<ButtonRelease-1>", self._on_drag_release)
+
+    def _on_drag_motion(self, _event: object) -> None:
+        pass
+
+    def _on_drag_release(self, event: object) -> None:
+        ev = event  # type: ignore[assignment]
+        try:
+            if self._press is None or self._on_reorder is None:
+                return
+            from_idx = self._press[0]
+            to_idx = self._index_under_xy(int(ev.x_root), int(ev.y_root))
+            if to_idx is not None and from_idx != to_idx:
+                self._on_reorder(from_idx, to_idx)
+        finally:
+            self._deck.unbind("<B1-Motion>")
+            self._deck.unbind("<ButtonRelease-1>")
+            try:
+                self._deck.grab_release()
+            except Exception:
+                pass
+            self._press = None
+            self._dragging = False
+
+    def _on_item_release(self, event: object, _idx: int, item: DeckItem) -> None:
+        ev = event  # type: ignore[assignment]
+        if self._on_reorder is None:
+            return
+        try:
+            ev.widget.unbind("<B1-Motion>")
+        except Exception:
+            pass
+        if self._dragging:
+            return
+        if self._press is not None:
+            self._on_primary(item)
+        self._press = None
 
     def rebuild(self, items: list[DeckItem]) -> None:
         self._items = list(items)
@@ -95,12 +171,28 @@ class DeckGridView:
                 idx = r * self._cols + c
                 if idx < len(self._items):
                     it = self._items[idx]
-                    b = ctk.CTkButton(
-                        row_f,
-                        text=item_display_label(it),
-                        command=lambda i=it: self._on_primary(i),
-                        **cell,
-                    )
+                    if self._on_reorder is not None:
+                        b = ctk.CTkButton(
+                            row_f,
+                            text=item_display_label(it),
+                            **cell,
+                        )
+                        setattr(b, "_streampanel_deck_idx", idx)
+                        b.bind(
+                            "<Button-1>",
+                            lambda e, i=idx, t=it: self._on_item_press(e, i, t),
+                        )
+                        b.bind(
+                            "<ButtonRelease-1>",
+                            lambda e, i=idx, t=it: self._on_item_release(e, i, t),
+                        )
+                    else:
+                        b = ctk.CTkButton(
+                            row_f,
+                            text=item_display_label(it),
+                            command=lambda i=it: self._on_primary(i),
+                            **cell,
+                        )
                     b.grid(row=0, column=c, sticky="nsew", padx=4, pady=2)
 
                     def on_right(_e: object, i: DeckItem = it) -> str:

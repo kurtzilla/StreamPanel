@@ -2,19 +2,56 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import os
 import subprocess
 import sys
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+import tkinter
 from tkinter import filedialog
 
 import customtkinter as ctk
 
 from streampanel import store
-from streampanel.shortcuts_folder import user_data_dir
+from streampanel.shortcuts_folder import (
+    default_db_path,
+    resolve_shortcuts_dir,
+    user_data_dir,
+)
 from streampanel.window_chrome import COLOR_BG, _stub_dialog
+
+
+def _app_version() -> str:
+    try:
+        return importlib.metadata.version("streampanel")
+    except importlib.metadata.PackageNotFoundError:
+        return "0.0.0"
+
+
+def _diagnostics_block(settings: store.AppSettings) -> str:
+    c = store.connect()
+    try:
+        all_items = store.list_items(c)
+        deck = store.list_deck_items(c, settings)
+    finally:
+        c.close()
+    n_total = len(all_items)
+    n_deck = len(deck)
+    n_hidden = sum(1 for it in all_items if store.item_hidden_from_deck(it))
+    db_path = default_db_path()
+    sc_dir = resolve_shortcuts_dir(settings.shortcuts_dir)
+    py_line = sys.version.replace("\n", " ")
+    lines = [
+        f"StreamPanel version: {_app_version()}",
+        f"Python: {py_line}",
+        f"Platform: {sys.platform}",
+        f"Database: {db_path}",
+        f"Shortcuts folder (resolved): {sc_dir}",
+        f"Items — total: {n_total}, on deck: {n_deck}, hidden-from-deck: {n_hidden}",
+    ]
+    return "\n".join(lines)
 
 
 def _open_user_data_dir() -> None:
@@ -40,8 +77,8 @@ def open_settings_dialog(
 
     win = ctk.CTkToplevel(parent)
     win.title("Settings")
-    win.geometry("520x520")
-    win.minsize(440, 460)
+    win.geometry("520x620")
+    win.minsize(440, 520)
     win.transient(parent)
     win.configure(fg_color=COLOR_BG)
     win.attributes("-topmost", True)
@@ -176,6 +213,30 @@ def open_settings_dialog(
         width=160,
         command=open_data_folder,
     ).pack(side="left")
+
+    ctk.CTkLabel(outer, text="About / Diagnostics", anchor="w").pack(
+        fill="x", pady=(8, 4)
+    )
+    diag_body = _diagnostics_block(current)
+    diag_box = ctk.CTkTextbox(outer, height=110, wrap="word", font=ctk.CTkFont(size=11))
+    diag_box.pack(fill="x", pady=(0, 8))
+    diag_box.insert("1.0", diag_body)
+    diag_box.configure(state="disabled")
+
+    def copy_diagnostics() -> None:
+        text = _diagnostics_block(current)
+        try:
+            win.clipboard_clear()
+            win.clipboard_append(text)
+            win.update()
+        except tkinter.TclError as e:
+            _stub_dialog(win, "Copy failed", str(e))
+            return
+        _stub_dialog(win, "Copied", "Diagnostics copied to the clipboard.")
+
+    ctk.CTkButton(outer, text="Copy diagnostics to clipboard", command=copy_diagnostics).pack(
+        fill="x", pady=(0, 4)
+    )
 
     btn_row = ctk.CTkFrame(outer, fg_color="transparent")
     btn_row.pack(fill="x", pady=(16, 0))

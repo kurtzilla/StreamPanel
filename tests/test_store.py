@@ -86,6 +86,29 @@ class StoreTests(unittest.TestCase):
         self.assertTrue(store.delete_item(conn, first_id))
         self.assertIsNone(store.get_item(conn, first_id))
 
+    def test_merge_full_order_after_visible_reorder(self) -> None:
+        full = [10, 20, 30, 40]
+        vis = frozenset({10, 30, 40})
+        new_vis = [40, 10, 30]
+        merged = store.merge_full_order_after_visible_reorder(
+            full, new_vis, visible_id_set=vis
+        )
+        self.assertEqual(merged, [40, 20, 10, 30])
+
+        merged2 = store.merge_full_order_after_visible_reorder(
+            [1, 2, 3], [3, 1, 2], visible_id_set=frozenset({1, 2, 3})
+        )
+        self.assertEqual(merged2, [3, 1, 2])
+
+        with self.assertRaises(ValueError):
+            store.merge_full_order_after_visible_reorder(
+                full, [40, 10], visible_id_set=vis
+            )
+        with self.assertRaises(ValueError):
+            store.merge_full_order_after_visible_reorder(
+                full, [40, 10, 99], visible_id_set=vis
+            )
+
     def test_app_kv_migration_and_panel_shell(self) -> None:
         conn = store.connect(self.db)
         self.addCleanup(conn.close)

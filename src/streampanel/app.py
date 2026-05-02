@@ -226,6 +226,23 @@ def run() -> None:
     def on_item_edit(it: store.DeckItem) -> None:
         open_item_editor(root, it.id, on_saved=reload_deck)
 
+    def on_deck_reorder(from_idx: int, to_idx: int) -> None:
+        vis = list(items_ref[0])
+        ids = [it.id for it in vis]
+        moved = ids.pop(from_idx)
+        ids.insert(to_idx, moved)
+        c = store.connect()
+        try:
+            full = [it.id for it in store.list_items(c)]
+            vis_set = frozenset(ids)
+            merged = store.merge_full_order_after_visible_reorder(
+                full, ids, visible_id_set=vis_set
+            )
+            store.reorder_items(c, merged)
+        finally:
+            c.close()
+        reload_deck()
+
     body = apply_borderless_chrome(
         root,
         always_on_top=shell_state["top"],
@@ -260,6 +277,7 @@ def run() -> None:
         on_item_primary=on_item_primary,
         on_item_edit=on_item_edit,
         on_add=on_add_link,
+        on_reorder=on_deck_reorder,
     )
     deck_grid_holder[0].rebuild(items_ref[0])
     deck_grid_holder[0].widget.pack(fill="both", expand=True)

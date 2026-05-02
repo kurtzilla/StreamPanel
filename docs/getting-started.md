@@ -49,6 +49,7 @@ To add a Windows application or local file, drop a `.lnk` into the shortcuts fol
 ## Editing a deck item
 
 - Left-click a deck cell — opens the Channels window ([`src/streampanel/channels_view.py`](../src/streampanel/channels_view.py); lower pane later). That records a **`view`** event in `launch_events`. Click **Launch** there to open the shortcut with the OS default app (via [`runtime_shell.py`](../src/streampanel/runtime_shell.py)); a successful open records a **`launch`** event.
+- Drag a deck cell onto another tile — reorders shortcuts on the deck (persisted in the database). Use a short drag past the movement threshold so a normal click still opens Channels.
 - Right-click a deck cell — opens the item editor ([`src/streampanel/item_editor.py`](../src/streampanel/item_editor.py)) with:
   - Display label (empty falls back to the source filename stem).
   - Notes (free-form text).
@@ -65,6 +66,7 @@ The Settings modal ([`src/streampanel/settings_dialog.py`](../src/streampanel/se
 - Shortcuts folder — leave empty for the default; otherwise pick an existing directory. Invalid or missing paths fall back to the default.
 - Deck columns — `GRID_COLS_MIN`..`GRID_COLS_MAX` (currently 2–8). Column count drives both grid layout and the panel's min/max height.
 - Show items hidden from deck on the grid — surfaces items flagged with hide-from-deck so you can edit them again.
+- About / Diagnostics — read-only summary (version, Python, database and shortcuts paths, item counts) plus **Copy diagnostics to clipboard** for bug reports or support.
 
 Changes apply immediately on Save: appearance is re-applied, the deck rebuilds, and the panel resizes to fit the new column count.
 
@@ -81,3 +83,7 @@ On Windows the panel sets `WS_EX_TOOLWINDOW` ([`src/streampanel/win_overlay.py`]
 - Wrong shortcuts folder — open Settings, confirm the path, and clear the field to fall back to the default `%APPDATA%\StreamPanel\shortcuts\`.
 - Deck item gone after sync — confirm the underlying `.lnk` / `.url` file still exists in the shortcuts folder; sync removes items whose source path is missing.
 - Window opens off-screen — geometry is clamped on next launch (`clamp_root_geometry` in [`src/streampanel/panel_layout.py`](../src/streampanel/panel_layout.py)); if you ever need a hard reset, delete `streampanel.db` from the user data dir (this also clears items, settings, and launch history).
+
+### Diagnostics (bug reports)
+
+Open **Settings**, scroll to **About / Diagnostics**, and use **Copy diagnostics to clipboard** for exact database and shortcuts paths, the app version, Python/platform, and item counts. Paste the block into an issue or email (no secrets).

@@ -528,6 +528,30 @@ def export_db_to_file(dest: Path, *, source: Path | None = None) -> None:
         src_conn.close()
 
 
+def merge_full_order_after_visible_reorder(
+    full_ordered_ids: list[int],
+    visible_new_order: list[int],
+    *,
+    visible_id_set: frozenset[int],
+) -> list[int]:
+    """Build a full id list for :func:`reorder_items` after the user reorders only deck-visible tiles.
+
+    Walk ``full_ordered_ids`` in current library order. At each position, if that id is in
+    ``visible_id_set``, substitute the next id from ``visible_new_order``; otherwise keep the
+    hidden id in place. Preserves relative positions of non-visible items.
+
+    ``visible_new_order`` must be a permutation of the visible ids (same set as
+    ``full_ordered_ids`` ∩ ``visible_id_set``).
+    """
+    n_vis_slots = sum(1 for i in full_ordered_ids if i in visible_id_set)
+    if len(visible_new_order) != n_vis_slots:
+        raise ValueError("visible_new_order length must match visible slot count in full order")
+    if frozenset(visible_new_order) != visible_id_set:
+        raise ValueError("visible_new_order must contain exactly the visible id set")
+    it_new = iter(visible_new_order)
+    return [next(it_new) if i in visible_id_set else i for i in full_ordered_ids]
+
+
 def reorder_items(conn: sqlite3.Connection, ordered_ids: Iterable[int]) -> None:
     cur = conn.cursor()
     for i, item_id in enumerate(ordered_ids):

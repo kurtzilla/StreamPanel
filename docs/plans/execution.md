@@ -18,7 +18,7 @@ Todo ids match the **Stream Panel CTk App** Cursor plan. **One active row** at a
 | `onboarding-docs` | next | | End-user [`docs/getting-started.md`](../getting-started.md) + contributor [`docs/developing.md`](../developing.md); README "Onboarding" pointers + [`docs/README.md`](../README.md) index updated. |
 | `runtime-shell` | done | | |
 | `backup-scale-ui` | done | | |
-| `deck-ops-diagnostics` | pending | | |
+| `deck-ops-diagnostics` | done | — | Deck drag-reorder ([`deck_grid.py`](src/streampanel/deck_grid.py), [`app.py`](src/streampanel/app.py)); [`merge_full_order_after_visible_reorder`](src/streampanel/store.py) + tests; Settings About/Diagnostics + copy ([`settings_dialog.py`](src/streampanel/settings_dialog.py)); [`getting-started.md`](../getting-started.md) troubleshooting. |
 | `v1-stretch-features` | pending | | |
 | `portable-a11y` | pending | | |
 | `git-upstream` | pending | | |

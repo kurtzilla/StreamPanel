@@ -50,8 +50,15 @@ def _diagnostics_block(settings: store.AppSettings) -> str:
         f"Database: {db_path}",
         f"Shortcuts folder (resolved): {sc_dir}",
         f"Items — total: {n_total}, on deck: {n_deck}, hidden-from-deck: {n_hidden}",
+        f"Drawer auto-close: {_drawer_autoclose_diag(settings.panel_drawer_autoclose_sec)}",
     ]
     return "\n".join(lines)
+
+
+def _drawer_autoclose_diag(sec: int | None) -> str:
+    if sec is None:
+        return "never"
+    return f"{int(sec)} s"
 
 
 def _open_user_data_dir() -> None:
@@ -391,6 +398,38 @@ def open_settings_dialog(
         )
     )
 
+    _drawer_autoclose_labels = ("Never", "5 seconds", "10 seconds", "30 seconds", "60 seconds")
+    _drawer_autoclose_label_for: dict[int | None, str] = {
+        None: _drawer_autoclose_labels[0],
+        5: _drawer_autoclose_labels[1],
+        10: _drawer_autoclose_labels[2],
+        30: _drawer_autoclose_labels[3],
+        60: _drawer_autoclose_labels[4],
+    }
+    _drawer_autoclose_from_label = {v: k for k, v in _drawer_autoclose_label_for.items()}
+
+    ctk.CTkLabel(outer, text="Drawer auto-close", anchor="w").pack(
+        fill="x", pady=(0, 4)
+    )
+    ctk.CTkLabel(
+        outer,
+        text="When the deck is open, collapse it to the title strip after this much "
+        "idle time (keyboard or mouse in the panel). Never keeps the deck open until "
+        "you hide it with the strip control.",
+        anchor="w",
+        justify="left",
+        wraplength=440,
+        text_color=("gray75", "gray70"),
+    ).pack(fill="x", pady=(0, 6))
+    drawer_autoclose_menu = ctk.CTkOptionMenu(outer, values=list(_drawer_autoclose_labels))
+    drawer_autoclose_menu.pack(fill="x", pady=(0, 12))
+    drawer_autoclose_menu.set(
+        _drawer_autoclose_label_for.get(
+            store.clamp_panel_drawer_autoclose_sec(current.panel_drawer_autoclose_sec),
+            _drawer_autoclose_labels[0],
+        )
+    )
+
     ctk.CTkLabel(outer, text="Data", anchor="w").pack(fill="x", pady=(0, 4))
     ctk.CTkLabel(
         outer,
@@ -519,6 +558,10 @@ def open_settings_dialog(
         panel_drag_animation = _drag_anim_from_display.get(
             d_anim_lab, store.PANEL_DRAG_ANIM_NONE
         )
+        dac_lab = drawer_autoclose_menu.get()
+        panel_drawer_autoclose_sec = store.clamp_panel_drawer_autoclose_sec(
+            _drawer_autoclose_from_label.get(dac_lab)
+        )
         return {
             "ui_theme": ui_theme,
             "ui_scale": ui_scale,
@@ -528,6 +571,7 @@ def open_settings_dialog(
             "deck_primary_action": deck_primary_action,
             "window_startup_placement": window_startup_placement,
             "panel_drag_animation": panel_drag_animation,
+            "panel_drawer_autoclose_sec": panel_drawer_autoclose_sec,
             "always_on_top": bool(always_on_top_var.get()),
             "tile_mode": tile_mode[0],
             "tile_custom_text": cell_custom_entry.get().strip()
@@ -549,6 +593,7 @@ def open_settings_dialog(
             or w["deck_primary_action"] != a["deck_primary_action"]
             or w["window_startup_placement"] != a["window_startup_placement"]
             or w["panel_drag_animation"] != a["panel_drag_animation"]
+            or w.get("panel_drawer_autoclose_sec") != a.get("panel_drawer_autoclose_sec")
             or bool(w["always_on_top"]) != bool(a["always_on_top"])
             or w["tile_mode"] != a["tile_mode"]
             or str(w.get("tile_custom_text", "")) != str(a.get("tile_custom_text", ""))
@@ -581,6 +626,7 @@ def open_settings_dialog(
                 "deck_primary_action": s.deck_primary_action,
                 "window_startup_placement": s.window_startup_placement,
                 "panel_drag_animation": s.panel_drag_animation,
+                "panel_drawer_autoclose_sec": s.panel_drawer_autoclose_sec,
                 "always_on_top": always_on_top,
                 "tile_mode": tm,
                 "tile_custom_text": tc,
@@ -637,6 +683,12 @@ def open_settings_dialog(
         always_on_top_var.set(False)
         drag_anim_menu.set(
             _drag_anim_display_for.get(d.panel_drag_animation, "None")
+        )
+        drawer_autoclose_menu.set(
+            _drawer_autoclose_label_for.get(
+                store.clamp_panel_drawer_autoclose_sec(d.panel_drawer_autoclose_sec),
+                _drawer_autoclose_labels[0],
+            )
         )
         diag_body2 = _diagnostics_block(d)
         diag_box.configure(state="normal")
@@ -701,6 +753,10 @@ def open_settings_dialog(
         panel_drag_animation = _drag_anim_from_display.get(
             d_anim_lab, store.PANEL_DRAG_ANIM_NONE
         )
+        dac_lab = drawer_autoclose_menu.get()
+        panel_drawer_autoclose_sec = store.clamp_panel_drawer_autoclose_sec(
+            _drawer_autoclose_from_label.get(dac_lab)
+        )
         always_on_top = bool(always_on_top_var.get())
 
         settings = store.AppSettings(
@@ -714,6 +770,7 @@ def open_settings_dialog(
             deck_primary_action=deck_primary_action,
             window_startup_placement=window_startup_placement,
             panel_drag_animation=panel_drag_animation,
+            panel_drawer_autoclose_sec=panel_drawer_autoclose_sec,
         )
         c2 = store.connect()
         try:
@@ -753,6 +810,7 @@ def open_settings_dialog(
         placement_menu.configure(command=lambda _v: _mark_dirty())
         primary_menu.configure(command=lambda _v: _mark_dirty())
         drag_anim_menu.configure(command=lambda _v: _mark_dirty())
+        drawer_autoclose_menu.configure(command=lambda _v: _mark_dirty())
         path_entry.bind("<KeyRelease>", lambda _e: _mark_dirty())
         cell_custom_entry.bind("<KeyRelease>", lambda _e: _mark_dirty())
 

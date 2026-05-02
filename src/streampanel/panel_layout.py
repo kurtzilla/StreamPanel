@@ -4,6 +4,15 @@ from __future__ import annotations
 
 from streampanel.window_chrome import STRIP_HEIGHT
 
+# Thin row below the strip when the deck drawer is collapsed (re-open tab).
+DRAWER_PEEK_H = 20
+
+
+def drawer_collapsed_min_height() -> int:
+    """Minimum root height with title strip + peek row (deck hidden)."""
+    return int(STRIP_HEIGHT) + int(DRAWER_PEEK_H)
+
+
 # Column count for deck grid and height math (see deck_grid.py).
 DEFAULT_GRID_COLS = 4
 # Default square deck cell (user may override via ``AppSettings.deck_cell_px``).

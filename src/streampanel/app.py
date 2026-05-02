@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import customtkinter as ctk
@@ -15,9 +16,11 @@ from streampanel.item_editor import open_item_editor
 from streampanel.item_launch import try_launch_deck_item
 from streampanel.settings_dialog import open_settings_dialog
 from streampanel.panel_layout import (
+    DRAWER_PEEK_H,
     cap_shell_width_excess,
     clamp_root_geometry,
     deck_intrinsic_width,
+    drawer_collapsed_min_height,
     max_panel_height,
     min_panel_height,
     min_panel_width,
@@ -27,7 +30,11 @@ from streampanel.shortcuts_folder import (
     resolve_shortcuts_dir,
     user_data_dir,
 )
-from streampanel.win_overlay import apply_tool_window_overlay, set_tool_window_excluded
+from streampanel.win_overlay import (
+    apply_dwm_rounded_corners,
+    apply_tool_window_overlay,
+    set_tool_window_excluded,
+)
 from streampanel.window_chrome import (
     _stub_dialog,
     apply_borderless_chrome,
@@ -91,6 +98,17 @@ def run() -> None:
 
     intrinsic_w0 = deck_intrinsic_width(grid_cols_ref[0], deck_cell_px_ref[0])
 
+    drawer_collapsed_ref: list[bool] = [bool(shell.drawer_collapsed)]
+    last_expanded_h_ref: list[int] = [
+        max(
+            min_h,
+            int(shell.expanded_height)
+            if shell.expanded_height is not None
+            else min_h,
+        )
+    ]
+    collapsed_h0 = drawer_collapsed_min_height()
+
     if (
         shell.w is not None
         and shell.h is not None
@@ -104,7 +122,10 @@ def run() -> None:
             min_w0,
             intrinsic_w0,
         )
-        h_use = max(min_h, min(shell.h, max_h0))
+        if drawer_collapsed_ref[0]:
+            h_use = max(collapsed_h0, min(int(shell.h), max_h0))
+        else:
+            h_use = max(min_h, min(shell.h, max_h0))
         mon = win_monitors.monitor_for_panel_center(
             shell.x, shell.y, w_use, h_use, mons0
         )
@@ -113,6 +134,10 @@ def run() -> None:
         else:
             x_in = win_monitors.top_center_x(mon, w_use)
             y_in = mon.top
+        min_h_clamp = collapsed_h0 if drawer_collapsed_ref[0] else min_h
+        max_h_clamp = (
+            collapsed_h0 if drawer_collapsed_ref[0] else min(max_h0, mon.height)
+        )
         x0, y0, w1, h1 = clamp_root_geometry(
             x_in,
             y_in,
@@ -124,8 +149,8 @@ def run() -> None:
             vroot_h=mon.height,
             max_w=mon.width,
             min_w=min_w0,
-            min_h=min_h,
-            max_h=min(max_h0, mon.height),
+            min_h=min_h_clamp,
+            max_h=max_h_clamp,
         )
         root.geometry(f"{w1}x{h1}+{x0}+{y0}")
     else:
@@ -135,10 +160,15 @@ def run() -> None:
         h0 = max(min_h, 220)
         h0 = min(h0, max_h0, m0.height)
         root.geometry(f"{min_w0}x{h0}+{x0}+{y0}")
+        drawer_collapsed_ref[0] = False
 
-    root.minsize(min_w0, min_h)
+    root.minsize(
+        min_w0,
+        collapsed_h0 if drawer_collapsed_ref[0] else min_h,
+    )
 
     debounce_id: list[int | None] = [None]
+    drawer_after_id: list[str | int | None] = [None]
     drag_active: list[bool] = [False]
     _saved_win_constraints: list[tuple[tuple[int, int], tuple[int, int]] | None] = [
         None
@@ -166,6 +196,11 @@ def run() -> None:
     def persist_now() -> None:
         c2 = store.connect()
         try:
+            eh = (
+                last_expanded_h_ref[0]
+                if drawer_collapsed_ref[0]
+                else int(root.winfo_height())
+            )
             store.save_panel_shell_state(
                 c2,
                 always_on_top=shell_state["top"],
@@ -174,6 +209,8 @@ def run() -> None:
                 w=root.winfo_width(),
                 h=root.winfo_height(),
                 screen_number=screen_number_int(),
+                drawer_collapsed=drawer_collapsed_ref[0],
+                expanded_height=eh,
             )
         finally:
             c2.close()
@@ -192,8 +229,13 @@ def run() -> None:
     def flush_layout_and_persist() -> None:
         debounce_id[0] = None
         root.update_idletasks()
-        min_h2 = min_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
-        max_h2 = max_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+        collapsed_h = drawer_collapsed_min_height()
+        if drawer_collapsed_ref[0]:
+            min_h2 = collapsed_h
+            max_h2 = collapsed_h
+        else:
+            min_h2 = min_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+            max_h2 = max_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
         mons = win_monitors.list_work_monitors(root)
         x, y = root.winfo_x(), root.winfo_y()
         w, h = root.winfo_width(), root.winfo_height()
@@ -203,7 +245,8 @@ def run() -> None:
             not_mapped = int(root.winfo_viewable()) == 0
         except Exception:
             not_mapped = False
-        if not_mapped or w < max(40, min_w2 // 2) or h < max(40, min_h2 // 2):
+        min_floor = collapsed_h if drawer_collapsed_ref[0] else min_h2
+        if not_mapped or w < max(40, min_w2 // 2) or h < max(40, min_floor // 2):
             m0 = win_monitors.primary_or_first(mons)
             root.minsize(min_w2, min_h2)
             root.maxsize(m0.width, min(max_h2, m0.height))
@@ -231,6 +274,8 @@ def run() -> None:
         root.geometry(f"{w}x{h}+{x}+{y}")
         root.maxsize(mon.width, max_h_cap)
         root.minsize(min_w2, min_h2)
+        if not drawer_collapsed_ref[0]:
+            last_expanded_h_ref[0] = max(min_h2, int(h))
         if len(mons) > 1:
             try:
                 idx = next(
@@ -320,6 +365,7 @@ def run() -> None:
         _apply_ui_scale(settings.ui_scale)
         themes.apply_theme(settings.ui_theme)
         refresh_chrome_theme(root)
+        _refresh_peek_theme()
         grid_cols_ref[0] = settings.grid_cols
         deck_cell_px_ref[0] = settings.deck_cell_px
         dg = deck_grid_holder[0]
@@ -328,6 +374,9 @@ def run() -> None:
             dg.set_cell_px(settings.deck_cell_px)
         reload_deck()
         root.update_idletasks()
+        _cancel_drawer_timer()
+        if not drawer_collapsed_ref[0]:
+            _arm_drawer_timer()
 
     def on_always_on_top_from_settings(v: bool) -> None:
         shell_state["top"] = v
@@ -432,10 +481,16 @@ def run() -> None:
                 return
             m = mons[idx]
             root.update_idletasks()
-            w, h = root.winfo_width(), root.winfo_height()
+            w = root.winfo_width()
             min_w2 = min_panel_width(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
-            min_h2 = min_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
-            max_h2 = max_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+            if drawer_collapsed_ref[0]:
+                min_h2 = drawer_collapsed_min_height()
+                max_h2 = min_h2
+                h = min_h2
+            else:
+                h = root.winfo_height()
+                min_h2 = min_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+                max_h2 = max_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
             try:
                 not_mapped = int(root.winfo_viewable()) == 0
             except Exception:
@@ -453,6 +508,18 @@ def run() -> None:
 
     mon_labels = [f"Display {i + 1}" for i in range(len(mons0))]
 
+    def _get_drag_ghost_wh() -> tuple[int, int]:
+        w0 = int(root.winfo_width())
+        if drawer_collapsed_ref[0]:
+            h0 = max(
+                min_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0]),
+                last_expanded_h_ref[0],
+            )
+            return w0, h0
+        return w0, int(root.winfo_height())
+
+    _collapse_drawer_holder: list[Callable[[], None]] = [lambda: None]
+
     body = apply_borderless_chrome(
         root,
         always_on_top=shell_state["top"],
@@ -464,6 +531,8 @@ def run() -> None:
         on_panel_drag_start=on_panel_drag_start,
         on_panel_drag_end=on_panel_drag_end,
         get_drag_animation=lambda: app_settings_ref[0].panel_drag_animation,
+        get_drag_ghost_wh=_get_drag_ghost_wh,
+        on_drawer_collapse=lambda: _collapse_drawer_holder[0](),
     )
 
     inner = ctk.CTkFrame(body, fg_color="transparent")
@@ -498,6 +567,155 @@ def run() -> None:
     apply_deck()
     deck_grid_holder[0].widget.pack(anchor="n")
 
+    def _cancel_drawer_timer() -> None:
+        aid = drawer_after_id[0]
+        if aid is not None:
+            try:
+                root.after_cancel(aid)
+            except Exception:
+                pass
+            drawer_after_id[0] = None
+
+    pal_peek = themes.current_palette()
+    peek_row = ctk.CTkFrame(
+        root,
+        fg_color=pal_peek.shell_bg,
+        height=DRAWER_PEEK_H,
+        corner_radius=0,
+    )
+    peek_row.pack_propagate(False)
+    peek_inner = ctk.CTkFrame(peek_row, fg_color="transparent")
+    peek_inner.pack(fill="both", expand=True, padx=(4, 8), pady=2)
+
+    def _refresh_peek_theme() -> None:
+        pal = themes.current_palette()
+        peek_row.configure(fg_color=pal.shell_bg)
+
+    _expand_drawer_ref: list[Callable[[], None]] = [lambda: None]
+
+    def _sync_drawer_widgets() -> None:
+        raw = getattr(root, "_streampanel_chrome", None)
+        if not isinstance(raw, dict):
+            return
+        strip = raw["strip"]
+        bd = raw["body"]
+        dcb = raw.get("drawer_collapse_btn")
+        if drawer_collapsed_ref[0]:
+            try:
+                bd.pack_forget()
+            except Exception:
+                pass
+            peek_row.pack(fill="x", after=strip)
+            if dcb is not None:
+                try:
+                    dcb.pack_forget()
+                except Exception:
+                    pass
+        else:
+            try:
+                peek_row.pack_forget()
+            except Exception:
+                pass
+            try:
+                bd.pack(fill="both", expand=True, after=strip)
+            except Exception:
+                pass
+            if dcb is not None:
+                try:
+                    dcb.pack_forget()
+                    rr = raw["right_row"]
+                    before_w = None
+                    for c in rr.winfo_children():
+                        if c is dcb:
+                            continue
+                        before_w = c
+                        break
+                    if before_w is not None:
+                        dcb.pack(side="left", padx=(0, 6), pady=0, before=before_w)
+                    else:
+                        dcb.pack(side="left", padx=(0, 6), pady=0)
+                except Exception:
+                    pass
+
+    def _arm_drawer_timer() -> None:
+        _cancel_drawer_timer()
+        if drawer_collapsed_ref[0]:
+            return
+        sec = app_settings_ref[0].panel_drawer_autoclose_sec
+        if sec is None:
+            return
+
+        def tick() -> None:
+            drawer_after_id[0] = None
+            _collapse_drawer()
+
+        drawer_after_id[0] = root.after(int(sec) * 1000, tick)
+
+    def _shell_activity(_ev: object | None = None) -> None:
+        if drag_active[0]:
+            return
+        if drawer_collapsed_ref[0]:
+            return
+        if _ev is not None:
+            try:
+                w = getattr(_ev, "widget", None)
+                if w is not None and w.winfo_toplevel() is not root:
+                    return
+            except Exception:
+                return
+        _arm_drawer_timer()
+
+    def _collapse_drawer() -> None:
+        if drawer_collapsed_ref[0]:
+            return
+        root.update_idletasks()
+        min_full = min_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0])
+        last_expanded_h_ref[0] = max(min_full, int(root.winfo_height()))
+        drawer_collapsed_ref[0] = True
+        _sync_drawer_widgets()
+        x, y = root.winfo_x(), root.winfo_y()
+        w = int(root.winfo_width())
+        ch = drawer_collapsed_min_height()
+        root.geometry(f"{w}x{ch}+{x}+{y}")
+        _cancel_drawer_timer()
+        flush_layout_and_persist()
+
+    def _expand_drawer() -> None:
+        if not drawer_collapsed_ref[0]:
+            return
+        drawer_collapsed_ref[0] = False
+        _sync_drawer_widgets()
+        x, y = root.winfo_x(), root.winfo_y()
+        w = int(root.winfo_width())
+        h = max(
+            min_panel_height(n_ref[0], grid_cols_ref[0], deck_cell_px_ref[0]),
+            last_expanded_h_ref[0],
+        )
+        root.geometry(f"{w}x{h}+{x}+{y}")
+        flush_layout_and_persist()
+        _arm_drawer_timer()
+
+    _collapse_drawer_holder[0] = _collapse_drawer
+    _expand_drawer_ref[0] = _expand_drawer
+
+    ctk.CTkButton(
+        peek_inner,
+        text="▲",
+        width=30,
+        height=max(18, DRAWER_PEEK_H - 8),
+        corner_radius=6,
+        fg_color=pal_peek.strip_button_hover,
+        hover_color=pal_peek.deck_cell,
+        font=ctk.CTkFont(size=13),
+        command=lambda: _expand_drawer_ref[0](),
+    ).pack(side="right")
+
+    if drawer_collapsed_ref[0]:
+        _sync_drawer_widgets()
+
+    root.bind_all("<Button-1>", _shell_activity, add="+")
+    root.bind_all("<KeyPress>", _shell_activity, add="+")
+
     def on_configure(event: object) -> None:
         ev = event  # type: ignore[assignment]
         if ev.widget is not root:
@@ -514,10 +732,13 @@ def run() -> None:
         # Modal CTkToplevels use a different toplevel; while they have focus the main
         # window may not show a taskbar button (acceptable until we track transients).
         set_tool_window_excluded(root, False)
+        if not drawer_collapsed_ref[0]:
+            _arm_drawer_timer()
 
     def _root_focus_out(_event: object | None = None) -> None:
         if drag_active[0]:
             return
+        _cancel_drawer_timer()
 
         def maybe_exclude() -> None:
             try:
@@ -539,11 +760,15 @@ def run() -> None:
     root.bind("<FocusIn>", _root_focus_in)
     root.bind("<FocusOut>", _root_focus_out)
 
+    if not drawer_collapsed_ref[0]:
+        root.after_idle(_arm_drawer_timer)
+
     root.after_idle(lambda: root.after(0, flush_layout_and_persist))
 
     def _post_map_shell() -> None:
         single_instance.register_main_window_hwnd(root, data_root)
         apply_tool_window_overlay(root)
+        apply_dwm_rounded_corners(root)
 
     root.after(100, _post_map_shell)
 
@@ -552,6 +777,9 @@ def run() -> None:
         get_shortcuts_dir=lambda: shortcuts_ref[0],
         on_reload_deck=reload_deck,
         after_new_link=after_new_link_saved,
+        ensure_expanded=lambda: (
+            _expand_drawer() if drawer_collapsed_ref[0] else None
+        ),
     )
 
     def _accel_grab_clear() -> bool:

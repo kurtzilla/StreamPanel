@@ -158,6 +158,10 @@ PANEL_DRAG_ANIMATIONS: tuple[str, ...] = (
 )
 _PANEL_DRAG_ANIMATIONS = frozenset(PANEL_DRAG_ANIMATIONS)
 
+# Drawer auto-close: None = never; allowed seconds for inactivity timer.
+PANEL_DRAWER_AUTOCLOSE_PRESETS: tuple[int, ...] = (5, 10, 30, 60)
+_PANEL_DRAWER_AUTOCLOSE = frozenset(PANEL_DRAWER_AUTOCLOSE_PRESETS)
+
 GRID_COLS_MIN = 2
 GRID_COLS_MAX = 8
 
@@ -196,6 +200,8 @@ class PanelShellState:
     w: int | None
     h: int | None
     screen_number: int | None
+    drawer_collapsed: bool = False
+    expanded_height: int | None = None
 
 
 def load_panel_shell_state(conn: sqlite3.Connection) -> PanelShellState:
@@ -219,7 +225,25 @@ def load_panel_shell_state(conn: sqlite3.Connection) -> PanelShellState:
         screen_number = int(sn) if sn is not None else None
     except (KeyError, TypeError, ValueError):
         return PanelShellState(always_on_top, None, None, None, None, None)
-    return PanelShellState(always_on_top, x, y, w, h, screen_number)
+    drawer_collapsed = data.get("dc") is True
+    expanded_height: int | None = None
+    raw_eh = data.get("eh")
+    if isinstance(raw_eh, bool):
+        pass
+    elif isinstance(raw_eh, int):
+        expanded_height = max(1, raw_eh)
+    elif isinstance(raw_eh, float):
+        expanded_height = max(1, int(raw_eh))
+    return PanelShellState(
+        always_on_top,
+        x,
+        y,
+        w,
+        h,
+        screen_number,
+        drawer_collapsed=drawer_collapsed,
+        expanded_height=expanded_height,
+    )
 
 
 def save_panel_shell_state(
@@ -231,15 +255,25 @@ def save_panel_shell_state(
     w: int,
     h: int,
     screen_number: int,
+    drawer_collapsed: bool = False,
+    expanded_height: int | None = None,
 ) -> None:
     app_kv_set(conn, _K_ALWAYS_TOP, "1" if always_on_top else "0")
+    payload: dict[str, object] = {
+        "x": x,
+        "y": y,
+        "w": w,
+        "h": h,
+        "sn": screen_number,
+    }
+    if drawer_collapsed:
+        payload["dc"] = True
+    if expanded_height is not None and int(expanded_height) > 0:
+        payload["eh"] = int(expanded_height)
     app_kv_set(
         conn,
         _K_GEOM,
-        json.dumps(
-            {"x": x, "y": y, "w": w, "h": h, "sn": screen_number},
-            separators=(",", ":"),
-        ),
+        json.dumps(payload, separators=(",", ":")),
     )
 
 
@@ -262,6 +296,7 @@ class AppSettings:
     deck_primary_action: str
     window_startup_placement: str
     panel_drag_animation: str
+    panel_drawer_autoclose_sec: int | None
 
 
 def default_app_settings() -> AppSettings:
@@ -276,6 +311,7 @@ def default_app_settings() -> AppSettings:
         deck_primary_action=DECK_PRIMARY_CHANNELS,
         window_startup_placement=WINDOW_STARTUP_CENTER,
         panel_drag_animation=PANEL_DRAG_ANIM_NONE,
+        panel_drawer_autoclose_sec=None,
     )
 
 
@@ -289,6 +325,21 @@ def clamp_deck_cell_px(n: int) -> int:
 
 def clamp_ui_scale(x: float) -> float:
     return max(UI_SCALE_MIN, min(UI_SCALE_MAX, float(x)))
+
+
+def clamp_panel_drawer_autoclose_sec(raw: object) -> int | None:
+    """``None`` = never; otherwise one of ``PANEL_DRAWER_AUTOCLOSE_PRESETS``."""
+    if raw is None:
+        return None
+    if raw is False:
+        return None
+    try:
+        n = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if n in _PANEL_DRAWER_AUTOCLOSE:
+        return n
+    return None
 
 
 # Preset labels for Settings (values must stay within ``clamp_ui_scale`` bounds).
@@ -372,6 +423,9 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
     if isinstance(raw_pda, str) and raw_pda in _PANEL_DRAG_ANIMATIONS:
         panel_drag_animation = raw_pda
 
+    raw_pdac = data.get("panel_drawer_autoclose_sec", base.panel_drawer_autoclose_sec)
+    panel_drawer_autoclose_sec = clamp_panel_drawer_autoclose_sec(raw_pdac)
+
     return AppSettings(
         appearance_mode=appearance_mode,
         ui_theme=ui_theme,
@@ -383,6 +437,7 @@ def _parse_app_settings_dict(data: dict[str, Any]) -> AppSettings:
         deck_primary_action=deck_primary_action,
         window_startup_placement=window_startup_placement,
         panel_drag_animation=panel_drag_animation,
+        panel_drawer_autoclose_sec=panel_drawer_autoclose_sec,
     )
 
 
@@ -414,6 +469,7 @@ def save_app_settings(conn: sqlite3.Connection, settings: AppSettings) -> None:
         "deck_primary_action": settings.deck_primary_action,
         "window_startup_placement": settings.window_startup_placement,
         "panel_drag_animation": settings.panel_drag_animation,
+        "panel_drawer_autoclose_sec": settings.panel_drawer_autoclose_sec,
     }
     app_kv_set(
         conn,

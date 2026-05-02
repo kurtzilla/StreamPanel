@@ -141,6 +141,49 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s1.h, 300)
         self.assertEqual(s1.screen_number, 1)
 
+    def test_panel_shell_drawer_fields_round_trip(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        store.save_panel_shell_state(
+            conn,
+            always_on_top=False,
+            x=5,
+            y=6,
+            w=300,
+            h=56,
+            screen_number=0,
+            drawer_collapsed=True,
+            expanded_height=420,
+        )
+        s = store.load_panel_shell_state(conn)
+        self.assertTrue(s.drawer_collapsed)
+        self.assertEqual(s.expanded_height, 420)
+        self.assertEqual(s.h, 56)
+
+    def test_panel_shell_legacy_json_no_drawer_keys(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        store.app_kv_set(
+            conn,
+            "panel_window_geometry_v1",
+            '{"x":1,"y":2,"w":400,"h":500,"sn":0}',
+        )
+        store.app_kv_set(conn, "panel_always_on_top_v1", "0")
+        s = store.load_panel_shell_state(conn)
+        self.assertFalse(s.drawer_collapsed)
+        self.assertIsNone(s.expanded_height)
+
+    def test_app_settings_invalid_drawer_autoclose_defaults(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        store.app_kv_set(
+            conn,
+            "app_settings_v1",
+            '{"appearance_mode":"dark","panel_drawer_autoclose_sec":999}',
+        )
+        s = store.load_app_settings(conn)
+        self.assertIsNone(s.panel_drawer_autoclose_sec)
+
     def test_public_settings_constants(self) -> None:
         self.assertEqual(set(store.APPEARANCE_MODES), {"dark", "light", "system"})
         self.assertEqual(store.GRID_COLS_MIN, 2)
@@ -168,6 +211,7 @@ class StoreTests(unittest.TestCase):
             s.window_startup_placement, store.WINDOW_STARTUP_CENTER
         )
         self.assertEqual(s.panel_drag_animation, store.PANEL_DRAG_ANIM_NONE)
+        self.assertIsNone(s.panel_drawer_autoclose_sec)
 
     def test_set_panel_always_on_top(self) -> None:
         conn = store.connect(self.db)
@@ -193,6 +237,7 @@ class StoreTests(unittest.TestCase):
             deck_primary_action=store.DECK_PRIMARY_LAUNCH,
             window_startup_placement=store.WINDOW_STARTUP_LAST_POSITION,
             panel_drag_animation=store.PANEL_DRAG_ANIM_SLIDE,
+            panel_drawer_autoclose_sec=30,
         )
         store.save_app_settings(conn, s_in)
         s_out = store.load_app_settings(conn)
@@ -208,6 +253,7 @@ class StoreTests(unittest.TestCase):
             s_out.window_startup_placement, store.WINDOW_STARTUP_LAST_POSITION
         )
         self.assertEqual(s_out.panel_drag_animation, store.PANEL_DRAG_ANIM_SLIDE)
+        self.assertEqual(s_out.panel_drawer_autoclose_sec, 30)
 
     def test_app_settings_corrupt_json_uses_defaults(self) -> None:
         conn = store.connect(self.db)
@@ -391,6 +437,7 @@ class StoreTests(unittest.TestCase):
             deck_primary_action=st_hide.deck_primary_action,
             window_startup_placement=st_hide.window_startup_placement,
             panel_drag_animation=st_hide.panel_drag_animation,
+            panel_drawer_autoclose_sec=st_hide.panel_drawer_autoclose_sec,
         )
         all_vis = store.list_deck_items(conn, st_show)
         self.assertEqual(len(all_vis), 2)

@@ -19,6 +19,10 @@ PANEL_DRAG_ANIM_SLIDE = "slide"
 STRIP_HEIGHT = 36
 _MONITOR_SEG_MAX = 6
 
+# Borderless shell: rounded client chrome (strip + body); Windows 11 also
+# applies small HWND rounding via ``win_overlay.apply_dwm_rounded_corners``.
+SHELL_CORNER_RADIUS = 12
+
 
 class _ChromeRefs(TypedDict, total=False):
     strip: ctk.CTkFrame
@@ -31,6 +35,7 @@ class _ChromeRefs(TypedDict, total=False):
     strip_ghost_buttons: list[ctk.CTkButton]
     close_btn: ctk.CTkButton
     settings_btn: ctk.CTkButton
+    drawer_collapse_btn: ctk.CTkButton
     monitor_buttons: list[ctk.CTkButton]
     monitor_overflow_btn: ctk.CTkButton
 
@@ -208,7 +213,7 @@ def _create_placement_ghost(
     inner = ctk.CTkFrame(
         ghost,
         fg_color=p.ghost_cell,
-        corner_radius=0,
+        corner_radius=SHELL_CORNER_RADIUS,
         border_width=2,
         border_color=p.strip_button_hover,
     )
@@ -268,6 +273,7 @@ def _bind_drag_region(
     on_drag_start: Callable[[], None] | None = None,
     on_drag_end: Callable[[], None] | None = None,
     get_drag_animation: Callable[[], str] | None = None,
+    get_drag_ghost_wh: Callable[[], tuple[int, int]] | None = None,
 ) -> None:
     drag_attr = "_streampanel_drag_xy"
 
@@ -495,7 +501,14 @@ def _bind_drag_region(
             return
         e = event  # type: ignore[assignment]
         root.update_idletasks()
-        w, h = int(root.winfo_width()), int(root.winfo_height())
+        if get_drag_ghost_wh is not None:
+            try:
+                gw, gh = get_drag_ghost_wh()
+                w, h = int(gw), int(gh)
+            except Exception:
+                w, h = int(root.winfo_width()), int(root.winfo_height())
+        else:
+            w, h = int(root.winfo_width()), int(root.winfo_height())
         rx, ry = int(root.winfo_x()), int(root.winfo_y())
         ox = int(e.x_root) - rx
         oy = int(e.y_root) - ry
@@ -596,7 +609,16 @@ def refresh_chrome_theme(root: ctk.CTk) -> None:
     d: _ChromeRefs = raw  # type: ignore[assignment]
     p = themes.current_palette()
     root.configure(fg_color=p.shell_bg)
-    for w in (d["strip"], d["right_row"], d["drag_frame"], d.get("title_bar")):
+    d["strip"].configure(
+        fg_color=p.strip_bg,
+        background_corner_colors=(
+            p.strip_bg,
+            p.strip_bg,
+            p.shell_bg,
+            p.shell_bg,
+        ),
+    )
+    for w in (d["right_row"], d["drag_frame"], d.get("title_bar")):
         if w is not None:
             w.configure(fg_color=p.strip_bg)
     mi = d.get("move_icon")
@@ -629,6 +651,13 @@ def refresh_chrome_theme(root: ctk.CTk) -> None:
             hover_color=p.strip_button_hover,
             text_color=p.drag_hint_text,
         )
+    dcb = d.get("drawer_collapse_btn")
+    if dcb is not None:
+        dcb.configure(
+            fg_color="transparent",
+            hover_color=p.strip_button_hover,
+            text_color=p.drag_hint_text,
+        )
 
 
 def apply_borderless_chrome(
@@ -643,6 +672,8 @@ def apply_borderless_chrome(
     on_panel_drag_start: Callable[[], None] | None = None,
     on_panel_drag_end: Callable[[], None] | None = None,
     get_drag_animation: Callable[[], str] | None = None,
+    get_drag_ghost_wh: Callable[[], tuple[int, int]] | None = None,
+    on_drawer_collapse: Callable[[], None] | None = None,
 ) -> ctk.CTkFrame:
     """
     Remove native title bar and add top strip: move icon + title (drag), optional
@@ -660,12 +691,49 @@ def apply_borderless_chrome(
     root.configure(fg_color=p.shell_bg)
     root.attributes("-topmost", always_on_top)
 
-    strip = ctk.CTkFrame(root, fg_color=p.strip_bg, corner_radius=0, height=STRIP_HEIGHT)
+    strip_corner_fill = (
+        p.strip_bg,
+        p.strip_bg,
+        p.shell_bg,
+        p.shell_bg,
+    )
+    strip = ctk.CTkFrame(
+        root,
+        fg_color=p.strip_bg,
+        corner_radius=SHELL_CORNER_RADIUS,
+        height=STRIP_HEIGHT,
+        background_corner_colors=strip_corner_fill,
+    )
     strip.pack(fill="x", side="top")
     strip.pack_propagate(False)
 
     right_row = ctk.CTkFrame(strip, fg_color=p.strip_bg, corner_radius=0)
     right_row.pack(side="right", fill="y", padx=(0, 8), pady=4)
+
+    monitor_buttons: list[ctk.CTkButton] = []
+    monitor_overflow_btn: ctk.CTkButton | None = None
+    strip_ghosts: list[ctk.CTkButton] = []
+
+    drawer_collapse_btn: ctk.CTkButton | None = None
+    if callable(on_drawer_collapse):
+
+        def _drawer_collapse_cb() -> None:
+            on_drawer_collapse()
+
+        drawer_collapse_btn = ctk.CTkButton(
+            right_row,
+            text="⌄",
+            command=_drawer_collapse_cb,
+            width=28,
+            height=26,
+            corner_radius=6,
+            fg_color="transparent",
+            hover_color=p.strip_button_hover,
+            font=ctk.CTkFont(size=14),
+        )
+        drawer_collapse_btn.pack(side="left", padx=(0, 6), pady=0)
+        strip_ghosts.append(drawer_collapse_btn)
+        attach_tooltip(drawer_collapse_btn, "Hide deck")
 
     def settings_cb() -> None:
         if callable(on_settings):
@@ -691,9 +759,6 @@ def apply_borderless_chrome(
         if sys.platform == "win32"
         else ctk.CTkFont(size=15)
     )
-    monitor_buttons: list[ctk.CTkButton] = []
-    monitor_overflow_btn: ctk.CTkButton | None = None
-    strip_ghosts: list[ctk.CTkButton] = []
 
     if (
         monitor_values
@@ -801,6 +866,7 @@ def apply_borderless_chrome(
     _drag_kw: dict[str, object] = {
         "top_rail_snap": top_rail_snap,
         "get_drag_animation": get_drag_animation,
+        "get_drag_ghost_wh": get_drag_ghost_wh,
     }
     if on_panel_drag_start is not None and on_panel_drag_end is not None:
         _drag_kw["on_drag_start"] = on_panel_drag_start
@@ -809,7 +875,11 @@ def apply_borderless_chrome(
     _bind_drag_region(title_label, root, **_drag_kw)
     _bind_drag_region(drag, root, **_drag_kw)
 
-    body = ctk.CTkFrame(root, fg_color=p.shell_bg, corner_radius=0)
+    body = ctk.CTkFrame(
+        root,
+        fg_color=p.shell_bg,
+        corner_radius=SHELL_CORNER_RADIUS,
+    )
     body.pack(fill="both", expand=True)
 
     refs: _ChromeRefs = {
@@ -824,6 +894,8 @@ def apply_borderless_chrome(
         "close_btn": close_btn,
         "settings_btn": settings_btn,
     }
+    if drawer_collapse_btn is not None:
+        refs["drawer_collapse_btn"] = drawer_collapse_btn
     if monitor_buttons:
         refs["monitor_buttons"] = monitor_buttons
     if monitor_overflow_btn is not None:

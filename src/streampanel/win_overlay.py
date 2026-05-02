@@ -57,3 +57,44 @@ def set_tool_window_excluded(root: Any, excluded: bool) -> None:
 def apply_tool_window_overlay(root: Any) -> None:
     """Initial overlay: no taskbar until the user focuses the panel (see ``FocusIn`` in app)."""
     set_tool_window_excluded(root, True)
+
+
+# Windows 11+: DwmSetWindowAttribute(DWMWA_WINDOW_CORNER_PREFERENCE, …)
+_DWMWA_WINDOW_CORNER_PREFERENCE = 33
+_DWMWCP_ROUNDSMALL = 3
+
+
+def apply_dwm_rounded_corners(root: Any) -> None:
+    """
+    Ask the compositor for rounded window corners (Windows 11+).
+
+    No-op on other platforms or if the attribute is unsupported. Borderless
+    panels still benefit from matching in-client rounding in ``window_chrome``.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return
+    try:
+        hwnd = int(root.winfo_id())
+    except Exception:
+        return
+    if hwnd <= 0:
+        return
+    pref = ctypes.c_int(_DWMWCP_ROUNDSMALL)
+    try:
+        hr = int(
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                wintypes.HWND(hwnd),
+                ctypes.c_uint(_DWMWA_WINDOW_CORNER_PREFERENCE),
+                ctypes.byref(pref),
+                ctypes.sizeof(pref),
+            )
+        )
+    except Exception:
+        return
+    if hr != 0:
+        return

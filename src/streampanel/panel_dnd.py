@@ -91,6 +91,7 @@ def install_panel_drop_handlers(
     get_shortcuts_dir: Callable[[], Path],
     on_reload_deck: Callable[[], None],
     after_new_link: Callable[[Path, str | None], None],
+    ensure_expanded: Callable[[], None] | None = None,
 ) -> bool:
     """Register ``<<Drop>>`` on *root* if tkinterdnd2 is available. Returns True if installed."""
     try:
@@ -105,6 +106,8 @@ def install_panel_drop_handlers(
         data = getattr(event, "data", None)
         if not isinstance(data, str):
             return
+        if ensure_expanded is not None:
+            ensure_expanded()
         shortcuts_dir = get_shortcuts_dir()
 
         for p in paths_from_dnd_files(data):

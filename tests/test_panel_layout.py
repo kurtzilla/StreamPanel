@@ -9,6 +9,12 @@ from streampanel.window_chrome import STRIP_HEIGHT
 
 
 class PanelLayoutTests(unittest.TestCase):
+    def test_drawer_collapsed_min_height(self) -> None:
+        self.assertEqual(
+            panel_layout.drawer_collapsed_min_height(),
+            STRIP_HEIGHT + panel_layout.DRAWER_PEEK_H,
+        )
+
     def test_content_rows_empty_and_full(self) -> None:
         self.assertEqual(panel_layout.content_rows(0), 1)
         self.assertEqual(panel_layout.content_rows(1, cols=4), 1)

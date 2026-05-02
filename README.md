@@ -47,4 +47,4 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 ## Status
 
-**`sqlite-store`** done — SQLite `deck_items`, sync from shortcuts folder, CRUD/reorder ([`docs/plans/execution.md`](docs/plans/execution.md)). Next: **`window-chrome`**.
+**`window-chrome`** done — borderless shell + top strip ([`window_chrome.py`](src/streampanel/window_chrome.py)). **`panel-behavior`** done — pin, geometry persist, resize caps, Win overlay ([`docs/plans/execution.md`](docs/plans/execution.md)). Next: **`deck-grid-ui`**.

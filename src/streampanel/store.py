@@ -89,6 +89,95 @@ def migrate(conn: sqlite3.Connection) -> None:
             """
         )
         conn.commit()
+    version = int(cur.execute("PRAGMA user_version").fetchone()[0])
+    if version < 2:
+        cur.executescript(
+            """
+            CREATE TABLE app_kv (
+                key TEXT PRIMARY KEY NOT NULL,
+                value TEXT NOT NULL
+            );
+            PRAGMA user_version = 2;
+            """
+        )
+        conn.commit()
+
+
+_K_ALWAYS_TOP = "panel_always_on_top_v1"
+_K_GEOM = "panel_window_geometry_v1"
+
+
+def app_kv_get(conn: sqlite3.Connection, key: str) -> str | None:
+    cur = conn.cursor()
+    row = cur.execute("SELECT value FROM app_kv WHERE key = ?", (key,)).fetchone()
+    return str(row[0]) if row else None
+
+
+def app_kv_set(conn: sqlite3.Connection, key: str, value: str) -> None:
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO app_kv (key, value) VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """,
+        (key, value),
+    )
+    conn.commit()
+
+
+@dataclass(frozen=True)
+class PanelShellState:
+    always_on_top: bool
+    x: int | None
+    y: int | None
+    w: int | None
+    h: int | None
+    screen_number: int | None
+
+
+def load_panel_shell_state(conn: sqlite3.Connection) -> PanelShellState:
+    top_s = app_kv_get(conn, _K_ALWAYS_TOP)
+    always_on_top = top_s == "1" if top_s is not None else False
+    raw = app_kv_get(conn, _K_GEOM)
+    if not raw:
+        return PanelShellState(always_on_top, None, None, None, None, None)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return PanelShellState(always_on_top, None, None, None, None, None)
+    if not isinstance(data, dict):
+        return PanelShellState(always_on_top, None, None, None, None, None)
+    try:
+        x = int(data["x"])
+        y = int(data["y"])
+        w = int(data["w"])
+        h = int(data["h"])
+        sn = data.get("sn")
+        screen_number = int(sn) if sn is not None else None
+    except (KeyError, TypeError, ValueError):
+        return PanelShellState(always_on_top, None, None, None, None, None)
+    return PanelShellState(always_on_top, x, y, w, h, screen_number)
+
+
+def save_panel_shell_state(
+    conn: sqlite3.Connection,
+    *,
+    always_on_top: bool,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    screen_number: int,
+) -> None:
+    app_kv_set(conn, _K_ALWAYS_TOP, "1" if always_on_top else "0")
+    app_kv_set(
+        conn,
+        _K_GEOM,
+        json.dumps(
+            {"x": x, "y": y, "w": w, "h": h, "sn": screen_number},
+            separators=(",", ":"),
+        ),
+    )
 
 
 def list_shortcut_files(folder: Path) -> frozenset[str]:

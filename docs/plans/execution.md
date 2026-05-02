@@ -6,9 +6,9 @@ Todo ids match the **Stream Panel CTk App** Cursor plan. **One active row** at a
 |---------|--------|-------------|-------|
 | `scaffold-package` | done | — | `python -m streampanel`, `pyproject` + `src/streampanel` |
 | `sqlite-store` | done | — | `store.py`, `shortcuts_folder.py`, `tests/test_store.py` |
-| `window-chrome` | next | | |
-| `panel-behavior` | pending | | |
-| `deck-grid-ui` | pending | | |
+| `window-chrome` | done | — | `window_chrome.py`: borderless strip, drag, Settings/Add link stubs, Close |
+| `panel-behavior` | done | — | Pin + Win `WS_EX_TOOLWINDOW` ([`win_overlay.py`](src/streampanel/win_overlay.py)), `app_kv` + [`store.py`](src/streampanel/store.py) geometry/`sn`, [`panel_layout.py`](src/streampanel/panel_layout.py) min–max H (cols=4 stub), ghost add row, debounced persist in [`app.py`](src/streampanel/app.py). |
+| `deck-grid-ui` | next | | |
 | `deck-item-editor` | pending | | |
 | `add-link-ux` | pending | | |
 | `settings-persist` | pending | | |

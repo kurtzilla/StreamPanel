@@ -83,6 +83,37 @@ class StoreTests(unittest.TestCase):
         self.assertTrue(store.delete_item(conn, first_id))
         self.assertIsNone(store.get_item(conn, first_id))
 
+    def test_app_kv_migration_and_panel_shell(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+
+        self.assertIsNone(store.app_kv_get(conn, "k"))
+        store.app_kv_set(conn, "k", "v")
+        self.assertEqual(store.app_kv_get(conn, "k"), "v")
+        store.app_kv_set(conn, "k", "v2")
+        self.assertEqual(store.app_kv_get(conn, "k"), "v2")
+
+        s0 = store.load_panel_shell_state(conn)
+        self.assertFalse(s0.always_on_top)
+        self.assertIsNone(s0.x)
+
+        store.save_panel_shell_state(
+            conn,
+            always_on_top=True,
+            x=10,
+            y=20,
+            w=400,
+            h=300,
+            screen_number=1,
+        )
+        s1 = store.load_panel_shell_state(conn)
+        self.assertTrue(s1.always_on_top)
+        self.assertEqual(s1.x, 10)
+        self.assertEqual(s1.y, 20)
+        self.assertEqual(s1.w, 400)
+        self.assertEqual(s1.h, 300)
+        self.assertEqual(s1.screen_number, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

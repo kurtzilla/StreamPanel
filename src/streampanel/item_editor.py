@@ -1,16 +1,19 @@
-"""Modal editor for a single deck item (label, notes, confirm flag)."""
+"""Modal editor for a single deck item (label, notes, icon, confirm flag)."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from tkinter import filedialog
 
 import customtkinter as ctk
 
 from streampanel import store, themes
+from streampanel.icon_image import load_ctk_image_for_path
 from streampanel.window_chrome import _stub_dialog
 
 _FLAG_CONFIRM = "confirm_launch"
+_PREVIEW_PX = 48
 
 
 def open_item_editor(
@@ -30,8 +33,8 @@ def open_item_editor(
 
     win = ctk.CTkToplevel(parent)
     win.title("Edit shortcut")
-    win.geometry("440x520")
-    win.minsize(380, 460)
+    win.geometry("480x640")
+    win.minsize(420, 560)
     win.transient(parent)
     win.configure(fg_color=themes.dialog_background())
     win.attributes("-topmost", True)
@@ -64,6 +67,57 @@ def open_item_editor(
     label_entry.pack(fill="x", pady=(0, 8))
     if item.label_override:
         label_entry.insert(0, item.label_override)
+
+    ctk.CTkLabel(outer, text="Deck icon (optional)", anchor="w").pack(fill="x", pady=(0, 4))
+    icon_row = ctk.CTkFrame(outer, fg_color="transparent")
+    icon_row.pack(fill="x", pady=(0, 4))
+    icon_row.grid_columnconfigure(0, weight=1)
+    icon_entry = ctk.CTkEntry(icon_row, placeholder_text=r".ico, image, or .exe / .dll")
+    icon_entry.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    if item.icon_path:
+        icon_entry.insert(0, item.icon_path)
+
+    preview_lbl = ctk.CTkLabel(outer, text="No preview", anchor="w")
+    preview_lbl.pack(fill="x", pady=(0, 8))
+
+    def refresh_preview(_event: object | None = None) -> None:
+        raw = icon_entry.get().strip()
+        img = load_ctk_image_for_path(raw, size_px=_PREVIEW_PX) if raw else None
+        if img is not None:
+            preview_lbl.configure(image=img, text="")
+        else:
+            preview_lbl.configure(image=None, text="No preview" if not raw else "Could not load preview")
+        preview_lbl.image = img  # type: ignore[attr-defined]
+
+    def browse_icon() -> None:
+        fp = filedialog.askopenfilename(
+            parent=win,
+            title="Choose icon file",
+            filetypes=(
+                ("Icon / image", "*.ico *.png *.jpg *.jpeg *.gif *.bmp *.webp"),
+                ("Programs / libraries", "*.exe *.dll"),
+                ("All files", "*.*"),
+            ),
+        )
+        if not fp:
+            return
+        icon_entry.delete(0, "end")
+        icon_entry.insert(0, fp)
+        refresh_preview()
+
+    def clear_icon_field() -> None:
+        icon_entry.delete(0, "end")
+        refresh_preview()
+
+    ctk.CTkButton(icon_row, text="Browse…", width=76, command=browse_icon).grid(
+        row=0, column=1, padx=(0, 4), sticky="e"
+    )
+    ctk.CTkButton(icon_row, text="Clear", width=56, command=clear_icon_field).grid(
+        row=0, column=2, sticky="e"
+    )
+
+    icon_entry.bind("<KeyRelease>", refresh_preview)
+    refresh_preview()
 
     ctk.CTkLabel(outer, text="Notes", anchor="w").pack(fill="x", pady=(0, 4))
     notes_box = ctk.CTkTextbox(outer, height=100, wrap="word")
@@ -108,15 +162,34 @@ def open_item_editor(
             merged = store.parse_flags(cur).copy()
             merged[_FLAG_CONFIRM] = bool(confirm_var.get())
             merged[store.FLAG_HIDE_FROM_DECK] = bool(hide_var.get())
-            ok = store.update_item(
-                c2,
-                item_id,
-                clear_label_override=not bool(label_text),
-                label_override=label_text if label_text else None,
-                clear_notes=not bool(notes_raw),
-                notes=notes_raw if notes_raw else None,
-                flags=merged,
-            )
+            icon_raw = icon_entry.get().strip()
+            if icon_raw:
+                ip = Path(icon_raw)
+                if not ip.is_file():
+                    _stub_dialog(win, "Icon file", "Icon path must be an existing file.")
+                    return
+                resolved = str(ip.resolve())
+                ok = store.update_item(
+                    c2,
+                    item_id,
+                    clear_label_override=not bool(label_text),
+                    label_override=label_text if label_text else None,
+                    clear_notes=not bool(notes_raw),
+                    notes=notes_raw if notes_raw else None,
+                    icon_path=resolved,
+                    flags=merged,
+                )
+            else:
+                ok = store.update_item(
+                    c2,
+                    item_id,
+                    clear_label_override=not bool(label_text),
+                    label_override=label_text if label_text else None,
+                    clear_notes=not bool(notes_raw),
+                    notes=notes_raw if notes_raw else None,
+                    clear_icon_path=True,
+                    flags=merged,
+                )
         finally:
             c2.close()
         if not ok:

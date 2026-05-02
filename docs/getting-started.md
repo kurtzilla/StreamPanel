@@ -43,8 +43,11 @@ Click "Add link" on the toolbar (or any `+` ghost cell on the deck). Provide:
 
 - URL — must start with `http://` or `https://` and include a host. The URL is normalized (lower-cased scheme/host) and saved.
 - Filename (optional) — without the `.url` extension. If left blank, the host (and a short slug from the path) is used. Invalid Windows filename characters are replaced and collisions get a numeric suffix.
+- Icon file (optional) — path to an existing `.ico`, image, `.exe`, or `.dll` used for both the written `.url` (`IconFile` / `IconIndex`) and the deck tile (stored in the database). Leave empty for the default tile look.
 
-The dialog writes a Windows internet shortcut (`[InternetShortcut]\nURL=…`) into the shortcuts folder, then triggers a deck reload (`reload_deck` in [`src/streampanel/app.py`](../src/streampanel/app.py)) so the new item appears immediately.
+The dialog writes a Windows internet shortcut (`[InternetShortcut]` with `URL=` and optional icon lines) into the shortcuts folder, then triggers a deck reload (`reload_deck` in [`src/streampanel/app.py`](../src/streampanel/app.py)) so the new item appears immediately.
+
+**Drag onto the panel:** With [`tkinterdnd2`](https://pypi.org/project/tkinterdnd2/) installed (it is a declared dependency), you can drop a **`.url`** file from Explorer onto the main window to open **Add link** with URL, filename stem, and icon fields prefilled from that shortcut. Dropping a single line of **https URL text** (for example from the browser address bar) prefills the URL only. Confirm with **Add** to import a copy into your shortcuts folder; the original file is not moved. If that **normalized URL** is already used by any `.url` in your shortcuts folder, drag-and-drop is refused with a short message (you can still create another shortcut with the same URL via **Add link**, for example after duplicating a file in Explorer).
 
 To add a Windows application or local file, drop a `.lnk` into the shortcuts folder yourself (e.g. via Explorer "Send to" or "Create shortcut"); StreamPanel will pick it up on the next sync.
 
@@ -55,6 +58,7 @@ To add a Windows application or local file, drop a `.lnk` into the shortcuts fol
 - Drag a deck cell onto another tile — reorders shortcuts on the deck (persisted in the database). Use a short drag past the movement threshold so a normal click still runs the primary action. **Drag reorder is disabled while the filter text is non-empty** so indices stay aligned with the full deck order in the database.
 - Right-click a deck cell — opens the item editor ([`src/streampanel/item_editor.py`](../src/streampanel/item_editor.py)) with:
   - Display label (empty falls back to the source filename stem).
+  - **Deck icon** — optional path to an icon/image or executable; **Browse** picks a file, **Clear** removes the custom icon, and a small preview updates as you type a valid path. This is stored per item in the database (independent of any `IconFile` inside a `.url` on disk).
   - Notes (free-form text).
   - "Confirm before launch (Channels)" — when checked, the Channels **Launch** button asks for confirmation before calling the system handler.
   - "Hide from deck" — keeps the item in the library but removes it from the grid (toggle visibility from Settings).

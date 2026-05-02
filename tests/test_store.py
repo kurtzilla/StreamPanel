@@ -10,6 +10,7 @@ from pathlib import Path
 from streampanel import store, themes
 from streampanel.panel_layout import DEFAULT_GRID_COLS
 from streampanel.shortcuts_folder import default_shortcuts_dir, resolve_shortcuts_dir
+from streampanel.url_shortcut import normalize_url
 
 
 class StoreTests(unittest.TestCase):
@@ -384,6 +385,36 @@ class StoreTests(unittest.TestCase):
         row3 = store.get_item(conn, zid)
         assert row3 is not None
         self.assertIsNone(row3.notes)
+
+        store.update_item(conn, zid, icon_path="C:\\icons\\x.ico")
+        row4 = store.get_item(conn, zid)
+        assert row4 is not None
+        self.assertEqual(row4.icon_path, "C:\\icons\\x.ico")
+        self.assertEqual(store.get_item_id_for_source_path(conn, p), zid)
+        store.update_item(conn, zid, clear_icon_path=True)
+        row5 = store.get_item(conn, zid)
+        assert row5 is not None
+        self.assertIsNone(row5.icon_path)
+
+    def test_get_item_id_for_source_path_missing(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        self.assertIsNone(
+            store.get_item_id_for_source_path(conn, self.shortcuts / "nope.url")
+        )
+
+    def test_deck_has_normalized_url(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+        a = self.shortcuts / "a.url"
+        b = self.shortcuts / "b.url"
+        a.write_text("[InternetShortcut]\nURL=https://dup.test/\n", encoding="ascii")
+        b.write_text("[InternetShortcut]\nURL=https://other.test/\n", encoding="ascii")
+        store.sync_from_folder(conn, self.shortcuts)
+        self.assertTrue(store.deck_has_normalized_url(conn, "https://dup.test/"))
+        self.assertTrue(store.deck_has_normalized_url(conn, normalize_url("HTTPS://DUP.test/")))
+        self.assertFalse(store.deck_has_normalized_url(conn, "https://missing.example/"))
+        self.assertFalse(store.deck_has_normalized_url(conn, normalize_url("https://dup.test/extra")))
 
 
 if __name__ == "__main__":

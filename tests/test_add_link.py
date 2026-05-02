@@ -9,31 +9,13 @@ from pathlib import Path
 from streampanel import store
 from streampanel.add_link_dialog import (
     default_stem_from_url,
-    internet_shortcut_body,
-    normalize_url,
     pick_unique_url_filename,
     sanitize_filename_stem,
 )
+from streampanel.url_shortcut import internet_shortcut_body, normalize_url
 
 
 class AddLinkHelpersTests(unittest.TestCase):
-    def test_normalize_url(self) -> None:
-        self.assertEqual(
-            normalize_url("  https://Example.COM/foo?x=1  "),
-            "https://example.com/foo?x=1",
-        )
-        self.assertEqual(normalize_url("http://localhost"), "http://localhost")
-
-    def test_normalize_url_errors(self) -> None:
-        for bad in ("", "   ", "ftp://a.com", "https://", "not-a-url"):
-            with self.subTest(bad=bad):
-                with self.assertRaises(ValueError):
-                    normalize_url(bad)
-
-    def test_internet_shortcut_body(self) -> None:
-        u = "https://example.com/a"
-        self.assertEqual(internet_shortcut_body(u), f"[InternetShortcut]\nURL={u}\n")
-
     def test_sanitize_filename_stem(self) -> None:
         self.assertEqual(sanitize_filename_stem('a<b>c|d'), "a-b-c-d")
         self.assertEqual(sanitize_filename_stem("  x  "), "x")

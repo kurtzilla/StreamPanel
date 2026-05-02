@@ -5,35 +5,20 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from pathlib import Path
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse
 
 import customtkinter as ctk
 
 from streampanel import themes
+from streampanel.url_shortcut import (
+    ParsedInternetShortcut,
+    internet_shortcut_body,
+    normalize_url,
+)
 from streampanel.window_chrome import _stub_dialog
 
 _MAX_STEM_LEN = 120
 _INVALID_WIN_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
-
-
-def normalize_url(raw: str) -> str:
-    s = raw.strip()
-    if not s:
-        raise ValueError("URL is empty.")
-    parsed = urlparse(s)
-    if parsed.scheme not in ("http", "https"):
-        raise ValueError("URL must start with http:// or https://.")
-    netloc = parsed.netloc
-    if not netloc:
-        raise ValueError("URL must include a host (e.g. https://example.com).")
-    netloc = netloc.lower()
-    return urlunparse(
-        (parsed.scheme.lower(), netloc, parsed.path or "", "", parsed.query, parsed.fragment)
-    )
-
-
-def internet_shortcut_body(url: str) -> str:
-    return f"[InternetShortcut]\nURL={url}\n"
 
 
 def sanitize_filename_stem(stem: str) -> str:
@@ -75,15 +60,18 @@ def open_add_link_dialog(
     parent: ctk.CTk,
     *,
     shortcuts_dir: Path,
+    preset: ParsedInternetShortcut | None = None,
+    suggested_filename_stem: str | None = None,
     on_created: Callable[[], None] | None = None,
+    after_save: Callable[[Path, str | None], None] | None = None,
 ) -> None:
     shortcuts_dir = shortcuts_dir.resolve()
     shortcuts_dir.mkdir(parents=True, exist_ok=True)
 
     win = ctk.CTkToplevel(parent)
     win.title("Add link")
-    win.geometry("440x280")
-    win.minsize(380, 260)
+    win.geometry("480x420")
+    win.minsize(420, 380)
     win.transient(parent)
     win.configure(fg_color=themes.dialog_background())
     win.attributes("-topmost", True)
@@ -95,7 +83,9 @@ def open_add_link_dialog(
 
     ctk.CTkLabel(outer, text="URL (https://…)", anchor="w").pack(fill="x", pady=(0, 4))
     url_entry = ctk.CTkEntry(outer, placeholder_text="https://example.com/page")
-    url_entry.pack(fill="x", pady=(0, 10))
+    url_entry.pack(fill="x", pady=(0, 8))
+    if preset is not None:
+        url_entry.insert(0, preset.url)
 
     ctk.CTkLabel(
         outer,
@@ -103,7 +93,27 @@ def open_add_link_dialog(
         anchor="w",
     ).pack(fill="x", pady=(0, 4))
     stem_entry = ctk.CTkEntry(outer, placeholder_text="Leave empty to use host from URL")
-    stem_entry.pack(fill="x", pady=(0, 16))
+    stem_entry.pack(fill="x", pady=(0, 8))
+    if suggested_filename_stem:
+        stem_entry.insert(0, sanitize_filename_stem(suggested_filename_stem))
+    elif preset is not None and not stem_entry.get().strip():
+        stem_entry.insert(0, default_stem_from_url(preset.url))
+
+    ctk.CTkLabel(
+        outer,
+        text="Icon file (optional, .ico / image / .exe)",
+        anchor="w",
+    ).pack(fill="x", pady=(0, 4))
+    icon_entry = ctk.CTkEntry(outer, placeholder_text=r"C:\path\to\icon.ico")
+    icon_entry.pack(fill="x", pady=(0, 4))
+    if preset is not None and preset.icon_file:
+        icon_entry.insert(0, preset.icon_file)
+
+    ctk.CTkLabel(outer, text="Icon index", anchor="w").pack(fill="x", pady=(0, 4))
+    icon_index_entry = ctk.CTkEntry(outer, placeholder_text="0")
+    icon_index_entry.pack(fill="x", pady=(0, 12))
+    if preset is not None:
+        icon_index_entry.insert(0, str(preset.icon_index))
 
     btn_row = ctk.CTkFrame(outer, fg_color="transparent")
     btn_row.pack(fill="x")
@@ -125,7 +135,25 @@ def open_add_link_dialog(
         stem_raw = stem_entry.get().strip()
         stem = stem_raw if stem_raw else default_stem_from_url(url)
         path = pick_unique_url_filename(shortcuts_dir, stem)
-        body = internet_shortcut_body(url)
+
+        icon_raw = icon_entry.get().strip()
+        try:
+            icon_idx = int(icon_index_entry.get().strip() or "0")
+        except ValueError:
+            _stub_dialog(win, "Invalid icon index", "Icon index must be an integer.")
+            return
+
+        icon_for_ini: str | None = None
+        deck_icon: str | None = None
+        if icon_raw:
+            ip = Path(icon_raw)
+            if not ip.is_file():
+                _stub_dialog(win, "Icon file", "Icon file path must be an existing file.")
+                return
+            icon_for_ini = str(ip)
+            deck_icon = str(ip.resolve())
+
+        body = internet_shortcut_body(url, icon_file=icon_for_ini, icon_index=icon_idx)
         try:
             path.write_text(body, encoding="utf-8", newline="\n")
         except OSError as e:
@@ -134,6 +162,8 @@ def open_add_link_dialog(
         dismiss()
         if on_created is not None:
             on_created()
+        if after_save is not None:
+            after_save(path, deck_icon)
 
     ctk.CTkButton(btn_row, text="Cancel", command=dismiss, width=100).pack(
         side="right", padx=(8, 0)

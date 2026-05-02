@@ -441,6 +441,42 @@ def get_item(conn: sqlite3.Connection, item_id: int) -> DeckItem | None:
     return DeckItem.from_row(row) if row else None
 
 
+def get_item_id_for_source_path(conn: sqlite3.Connection, path: Path | str) -> int | None:
+    """Return deck row id for a resolved shortcut path, or None if not found."""
+    key = str(Path(path).resolve())
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT id FROM deck_items WHERE source_path = ? COLLATE NOCASE",
+        (key,),
+    ).fetchone()
+    return int(row[0]) if row else None
+
+
+def normalized_internet_url_from_source_path(source_path: str) -> str | None:
+    """Return the normalized ``https`` URL from a ``.url`` file on disk, or None if not parseable."""
+    p = Path(source_path)
+    if p.suffix.lower() != ".url" or not p.is_file():
+        return None
+    try:
+        from streampanel.url_shortcut import parse_internet_shortcut
+
+        return parse_internet_shortcut(p).url
+    except ValueError:
+        return None
+
+
+def deck_has_normalized_url(conn: sqlite3.Connection, normalized_url: str) -> bool:
+    """True if some synced ``.url`` shortcut on disk already uses this normalized URL."""
+    want = normalized_url.strip()
+    if not want:
+        return False
+    for it in list_items(conn):
+        got = normalized_internet_url_from_source_path(it.source_path)
+        if got is not None and got == want:
+            return True
+    return False
+
+
 def delete_item(conn: sqlite3.Connection, item_id: int) -> bool:
     cur = conn.cursor()
     cur.execute("DELETE FROM deck_items WHERE id = ?", (item_id,))
@@ -458,13 +494,14 @@ def update_item(
     label_override: str | None = None,
     clear_label_override: bool = False,
     icon_path: str | None = None,
+    clear_icon_path: bool = False,
     notes: str | None = None,
     clear_notes: bool = False,
     flags: dict[str, Any] | None = None,
     viewer_rect: tuple[int, int, int, int] | None = None,
     clear_viewer_rect: bool = False,
 ) -> bool:
-    """Update deck row. Use ``clear_label_override`` / ``clear_notes`` for SQL NULL (default stem / no notes)."""
+    """Update deck row. Use ``clear_*`` flags for SQL NULL where applicable."""
     cur = conn.cursor()
     row = cur.execute("SELECT * FROM deck_items WHERE id = ?", (item_id,)).fetchone()
     if not row:
@@ -495,7 +532,12 @@ def update_item(
         new_label = label_override
     else:
         new_label = item.label_override
-    new_icon = icon_path if icon_path is not None else item.icon_path
+    if clear_icon_path:
+        new_icon = None
+    elif icon_path is not None:
+        new_icon = icon_path
+    else:
+        new_icon = item.icon_path
     if clear_notes:
         new_notes = None
     elif notes is not None:

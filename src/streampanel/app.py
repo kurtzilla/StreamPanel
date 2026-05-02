@@ -8,6 +8,7 @@ import customtkinter as ctk
 
 from streampanel import store, themes
 from streampanel.add_link_dialog import open_add_link_dialog
+from streampanel.panel_dnd import install_panel_drop_handlers
 from streampanel.channels_view import open_channels_for_item
 from streampanel.deck_grid import DeckGridView, item_matches_search
 from streampanel.item_editor import open_item_editor
@@ -93,7 +94,7 @@ def run() -> None:
     ):
         root.geometry(f"{shell.w}x{shell.h}+{shell.x}+{shell.y}")
     else:
-        root.geometry("480x220")
+        root.geometry("600x220")
 
     root.minsize(MIN_PANEL_WIDTH, min_h)
 
@@ -222,8 +223,25 @@ def run() -> None:
         )
         apply_deck_filter()
 
+    def after_new_link_saved(path: Path, deck_icon: str | None) -> None:
+        if not deck_icon:
+            return
+        c = store.connect()
+        try:
+            iid = store.get_item_id_for_source_path(c, path)
+            if iid is not None:
+                store.update_item(c, iid, icon_path=deck_icon)
+        finally:
+            c.close()
+        reload_deck()
+
     def on_add_link() -> None:
-        open_add_link_dialog(root, shortcuts_dir=shortcuts_ref[0], on_created=reload_deck)
+        open_add_link_dialog(
+            root,
+            shortcuts_dir=shortcuts_ref[0],
+            on_created=reload_deck,
+            after_save=after_new_link_saved,
+        )
 
     def on_applied(settings: store.AppSettings) -> None:
         app_settings_ref[0] = settings
@@ -357,5 +375,12 @@ def run() -> None:
 
     root.after_idle(lambda: root.after(0, flush_layout_and_persist))
     root.after(100, lambda: apply_tool_window_overlay(root))
+
+    install_panel_drop_handlers(
+        root,
+        get_shortcuts_dir=lambda: shortcuts_ref[0],
+        on_reload_deck=reload_deck,
+        after_new_link=after_new_link_saved,
+    )
 
     root.mainloop()

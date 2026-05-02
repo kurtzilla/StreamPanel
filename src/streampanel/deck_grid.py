@@ -11,6 +11,7 @@ _DRAG_THRESHOLD_PX = 8
 _CELL_ICON_PX = 24
 
 from streampanel import themes
+from streampanel.icon_image import load_ctk_image_for_path
 from streampanel.panel_layout import (
     DEFAULT_GRID_COLS,
     ROW_H,
@@ -67,28 +68,7 @@ def _cell_style() -> dict[str, object]:
 def _try_cell_icon(item: DeckItem) -> ctk.CTkImage | None:
     if not item.icon_path:
         return None
-    p = Path(item.icon_path)
-    if not p.is_file():
-        return None
-    try:
-        from PIL import Image
-    except ImportError:
-        return None
-    try:
-        pil = Image.open(p)
-        pil = pil.convert("RGBA")
-        try:
-            resample = Image.Resampling.LANCZOS
-        except AttributeError:
-            resample = Image.LANCZOS  # type: ignore[attr-defined]
-        pil = pil.resize((_CELL_ICON_PX, _CELL_ICON_PX), resample)
-        return ctk.CTkImage(
-            light_image=pil,
-            dark_image=pil,
-            size=(_CELL_ICON_PX, _CELL_ICON_PX),
-        )
-    except OSError:
-        return None
+    return load_ctk_image_for_path(item.icon_path, size_px=_CELL_ICON_PX)
 
 
 class DeckGridView:

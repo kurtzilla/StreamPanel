@@ -10,7 +10,7 @@ ROW_H = 56
 BODY_PAD_Y = 16
 # Status summary above the deck grid.
 BODY_ABOVE_GRID_H = 100
-MIN_PANEL_WIDTH = 360
+MIN_PANEL_WIDTH = 600
 
 
 def content_rows(item_count: int, cols: int = DEFAULT_GRID_COLS) -> int:

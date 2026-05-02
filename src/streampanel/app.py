@@ -5,7 +5,8 @@ from __future__ import annotations
 import customtkinter as ctk
 
 from streampanel import store
-from streampanel.deck_grid import DeckGridView, item_display_label
+from streampanel.deck_grid import DeckGridView
+from streampanel.item_editor import open_item_editor
 from streampanel.panel_layout import (
     MIN_PANEL_WIDTH,
     clamp_root_geometry,
@@ -17,27 +18,33 @@ from streampanel.win_overlay import apply_tool_window_overlay
 from streampanel.window_chrome import _stub_dialog, apply_borderless_chrome
 
 
+def _sync_subtitle(n: int, sync: store.SyncResult, shortcuts: object) -> str:
+    return (
+        f"{n} shortcut(s) in DB — sync +{len(sync.added_paths)} / −{len(sync.removed_ids)}.\n"
+        f"Shortcuts folder:\n{shortcuts}"
+    )
+
+
 def run() -> None:
     ctk.set_appearance_mode("dark")
     root = ctk.CTk()
     root.title("StreamPanel")
 
+    shortcuts = default_shortcuts_dir()
     conn = store.connect()
     try:
-        shortcuts = default_shortcuts_dir()
         sync = store.sync_from_folder(conn, shortcuts)
         items = store.list_items(conn)
-        n = len(items)
         shell = store.load_panel_shell_state(conn)
-        subtitle = (
-            f"{n} shortcut(s) in DB — sync +{len(sync.added_paths)} / −{len(sync.removed_ids)}.\n"
-            f"Shortcuts folder:\n{shortcuts}"
-        )
     finally:
         conn.close()
 
+    items_ref: list[list[store.DeckItem]] = [items]
+    n_ref = [len(items_ref[0])]
+    subtitle = _sync_subtitle(n_ref[0], sync, shortcuts)
+
     shell_state: dict[str, bool] = {"top": shell.always_on_top}
-    min_h = min_panel_height(n)
+    min_h = min_panel_height(n_ref[0])
 
     if (
         shell.w is not None
@@ -89,14 +96,6 @@ def run() -> None:
     def on_add_link() -> None:
         _stub_dialog(root, "Add link", "Add-link dialog comes in add-link-ux.")
 
-    def on_item(it: store.DeckItem) -> None:
-        _stub_dialog(
-            root,
-            "Shortcut",
-            f"{item_display_label(it)}\n\n{it.source_path}\n\n"
-            "Launch / editor comes in later slices.",
-        )
-
     def on_close() -> None:
         persist_now()
         root.destroy()
@@ -109,14 +108,6 @@ def run() -> None:
         on_close=on_close,
     )
 
-    def on_configure(event: object) -> None:
-        ev = event  # type: ignore[assignment]
-        if ev.widget is not root:
-            return
-        schedule_persist()
-
-    root.bind("<Configure>", on_configure)
-
     inner = ctk.CTkFrame(body, fg_color="transparent")
     inner.pack(expand=True, fill="both", padx=20, pady=16)
 
@@ -126,26 +117,21 @@ def run() -> None:
         font=ctk.CTkFont(size=16, weight="bold"),
         anchor="w",
     ).pack(fill="x", pady=(0, 6))
-    ctk.CTkLabel(
+    subtitle_lbl = ctk.CTkLabel(
         inner,
         text=subtitle,
         wraplength=430,
         justify="left",
         anchor="w",
-    ).pack(fill="x", pady=(0, 8))
-
-    deck_grid = DeckGridView(
-        inner,
-        on_item_activated=on_item,
-        on_add=on_add_link,
     )
-    deck_grid.rebuild(items)
-    deck_grid.widget.pack(fill="both", expand=True)
+    subtitle_lbl.pack(fill="x", pady=(0, 8))
+
+    deck_grid_holder: list[DeckGridView | None] = [None]
 
     def flush_layout_and_persist() -> None:
         debounce_id[0] = None
-        min_h2 = min_panel_height(n)
-        max_h2 = max_panel_height(n)
+        min_h2 = min_panel_height(n_ref[0])
+        max_h2 = max_panel_height(n_ref[0])
         sw = root.winfo_screenwidth()
         vx, vy = root.winfo_vrootx(), root.winfo_vrooty()
         vw, vh = root.winfo_vrootwidth(), root.winfo_vrootheight()
@@ -168,8 +154,44 @@ def run() -> None:
         root.geometry(f"{w}x{h}+{x}+{y}")
         root.maxsize(sw, max_h2)
         root.minsize(MIN_PANEL_WIDTH, min_h2)
-        deck_grid.sync_extra_row(root.winfo_height(), n)
+        dg = deck_grid_holder[0]
+        if dg is not None:
+            dg.sync_extra_row(root.winfo_height(), n_ref[0])
         persist_now()
+
+    def reload_after_editor_save() -> None:
+        dg = deck_grid_holder[0]
+        if dg is None:
+            return
+        c = store.connect()
+        try:
+            sy = store.sync_from_folder(c, shortcuts)
+            items_ref[0] = store.list_items(c)
+            n_ref[0] = len(items_ref[0])
+        finally:
+            c.close()
+        dg.rebuild(items_ref[0])
+        subtitle_lbl.configure(text=_sync_subtitle(n_ref[0], sy, shortcuts))
+        flush_layout_and_persist()
+
+    def on_item(it: store.DeckItem) -> None:
+        open_item_editor(root, it.id, on_saved=reload_after_editor_save)
+
+    deck_grid_holder[0] = DeckGridView(
+        inner,
+        on_item_activated=on_item,
+        on_add=on_add_link,
+    )
+    deck_grid_holder[0].rebuild(items_ref[0])
+    deck_grid_holder[0].widget.pack(fill="both", expand=True)
+
+    def on_configure(event: object) -> None:
+        ev = event  # type: ignore[assignment]
+        if ev.widget is not root:
+            return
+        schedule_persist()
+
+    root.bind("<Configure>", on_configure)
 
     root.after_idle(lambda: root.after(0, flush_layout_and_persist))
     root.after(100, lambda: apply_tool_window_overlay(root))

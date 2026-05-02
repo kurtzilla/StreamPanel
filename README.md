@@ -47,4 +47,4 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 ## Status
 
-**`window-chrome`** done — borderless shell + top strip ([`window_chrome.py`](src/streampanel/window_chrome.py)). **`panel-behavior`** done — pin, geometry persist, resize caps, Win overlay. **`deck-grid-ui`** done — [`deck_grid.py`](src/streampanel/deck_grid.py) + app shell ([`docs/plans/execution.md`](docs/plans/execution.md)). Next: **`deck-item-editor`**.
+**`window-chrome`** done — borderless shell + top strip ([`window_chrome.py`](src/streampanel/window_chrome.py)). **`panel-behavior`** done — pin, geometry persist, resize caps, Win overlay. **`deck-grid-ui`** done — [`deck_grid.py`](src/streampanel/deck_grid.py). **`deck-item-editor`** done — [`item_editor.py`](src/streampanel/item_editor.py) ([`docs/plans/execution.md`](docs/plans/execution.md)). Next: **`add-link-ux`**.

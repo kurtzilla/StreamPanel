@@ -9,8 +9,8 @@ Todo ids match the **Stream Panel CTk App** Cursor plan. **One active row** at a
 | `window-chrome` | done | — | `window_chrome.py`: borderless strip, drag, Settings/Add link stubs, Close |
 | `panel-behavior` | done | — | Pin + Win `WS_EX_TOOLWINDOW` ([`win_overlay.py`](src/streampanel/win_overlay.py)), `app_kv` + [`store.py`](src/streampanel/store.py) geometry/`sn`, [`panel_layout.py`](src/streampanel/panel_layout.py) min–max H (cols=4 stub), ghost add row, debounced persist in [`app.py`](src/streampanel/app.py). |
 | `deck-grid-ui` | done | — | [`deck_grid.py`](src/streampanel/deck_grid.py): `DEFAULT_GRID_COLS` grid, sort_order cells, `+` / `+ add` ghosts, extra row near max height; [`app.py`](src/streampanel/app.py) wires stub item/add. |
-| `deck-item-editor` | next | | |
-| `add-link-ux` | pending | | |
+| `deck-item-editor` | done | — | [`item_editor.py`](src/streampanel/item_editor.py): modal label/notes/`confirm_launch`; `update_item` `clear_label_override` / `clear_notes`; app refresh + sync. |
+| `add-link-ux` | next | | |
 | `settings-persist` | pending | | |
 | `settings-window-ui` | pending | | |
 | `launch-tracker` | pending | | |

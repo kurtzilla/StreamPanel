@@ -114,6 +114,34 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(s1.h, 300)
         self.assertEqual(s1.screen_number, 1)
 
+    def test_clear_label_override_and_notes(self) -> None:
+        conn = store.connect(self.db)
+        self.addCleanup(conn.close)
+
+        p = self.shortcuts / "z.url"
+        p.write_text("[InternetShortcut]\nURL=https://z/\n", encoding="ascii")
+        store.sync_from_folder(conn, self.shortcuts)
+        items = store.list_items(conn)
+        self.assertEqual(len(items), 1)
+        zid = items[0].id
+
+        store.update_item(conn, zid, label_override="Custom", notes="hello")
+        row = store.get_item(conn, zid)
+        assert row is not None
+        self.assertEqual(row.label_override, "Custom")
+        self.assertEqual(row.notes, "hello")
+
+        store.update_item(conn, zid, clear_label_override=True, label_override=None)
+        row2 = store.get_item(conn, zid)
+        assert row2 is not None
+        self.assertIsNone(row2.label_override)
+        self.assertEqual(row2.notes, "hello")
+
+        store.update_item(conn, zid, clear_notes=True, notes=None)
+        row3 = store.get_item(conn, zid)
+        assert row3 is not None
+        self.assertIsNone(row3.notes)
+
 
 if __name__ == "__main__":
     unittest.main()

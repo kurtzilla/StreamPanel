@@ -277,12 +277,15 @@ def update_item(
     grid_row: int | None = None,
     grid_col: int | None = None,
     label_override: str | None = None,
+    clear_label_override: bool = False,
     icon_path: str | None = None,
     notes: str | None = None,
+    clear_notes: bool = False,
     flags: dict[str, Any] | None = None,
     viewer_rect: tuple[int, int, int, int] | None = None,
     clear_viewer_rect: bool = False,
 ) -> bool:
+    """Update deck row. Use ``clear_label_override`` / ``clear_notes`` for SQL NULL (default stem / no notes)."""
     cur = conn.cursor()
     row = cur.execute("SELECT * FROM deck_items WHERE id = ?", (item_id,)).fetchone()
     if not row:
@@ -307,11 +310,19 @@ def update_item(
     new_sort = sort_order if sort_order is not None else item.sort_order
     new_gr = grid_row if grid_row is not None else item.grid_row
     new_gc = grid_col if grid_col is not None else item.grid_col
-    new_label = (
-        label_override if label_override is not None else item.label_override
-    )
+    if clear_label_override:
+        new_label = None
+    elif label_override is not None:
+        new_label = label_override
+    else:
+        new_label = item.label_override
     new_icon = icon_path if icon_path is not None else item.icon_path
-    new_notes = notes if notes is not None else item.notes
+    if clear_notes:
+        new_notes = None
+    elif notes is not None:
+        new_notes = notes
+    else:
+        new_notes = item.notes
 
     cur.execute(
         """

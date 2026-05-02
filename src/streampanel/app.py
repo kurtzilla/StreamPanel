@@ -1,10 +1,11 @@
-"""Minimal CTk shell; deck UI comes in later slices."""
+"""Minimal CTk shell with deck grid (see deck_grid)."""
 
 from __future__ import annotations
 
 import customtkinter as ctk
 
 from streampanel import store
+from streampanel.deck_grid import DeckGridView, item_display_label
 from streampanel.panel_layout import (
     MIN_PANEL_WIDTH,
     clamp_root_geometry,
@@ -25,7 +26,8 @@ def run() -> None:
     try:
         shortcuts = default_shortcuts_dir()
         sync = store.sync_from_folder(conn, shortcuts)
-        n = len(store.list_items(conn))
+        items = store.list_items(conn)
+        n = len(items)
         shell = store.load_panel_shell_state(conn)
         subtitle = (
             f"{n} shortcut(s) in DB — sync +{len(sync.added_paths)} / −{len(sync.removed_ids)}.\n"
@@ -75,34 +77,6 @@ def run() -> None:
         finally:
             c2.close()
 
-    def flush_layout_and_persist() -> None:
-        debounce_id[0] = None
-        min_h2 = min_panel_height(n)
-        max_h2 = max_panel_height(n)
-        sw = root.winfo_screenwidth()
-        vx, vy = root.winfo_vrootx(), root.winfo_vrooty()
-        vw, vh = root.winfo_vrootwidth(), root.winfo_vrootheight()
-        x, y = root.winfo_x(), root.winfo_y()
-        w, h = root.winfo_width(), root.winfo_height()
-        x, y, w, h = clamp_root_geometry(
-            x,
-            y,
-            w,
-            h,
-            vroot_x=vx,
-            vroot_y=vy,
-            vroot_w=vw,
-            vroot_h=vh,
-            max_w=sw,
-            min_w=MIN_PANEL_WIDTH,
-            min_h=min_h2,
-            max_h=max_h2,
-        )
-        root.geometry(f"{w}x{h}+{x}+{y}")
-        root.maxsize(sw, max_h2)
-        root.minsize(MIN_PANEL_WIDTH, min_h2)
-        persist_now()
-
     def schedule_persist(_event: object | None = None) -> None:
         if debounce_id[0] is not None:
             root.after_cancel(debounce_id[0])
@@ -114,6 +88,14 @@ def run() -> None:
 
     def on_add_link() -> None:
         _stub_dialog(root, "Add link", "Add-link dialog comes in add-link-ux.")
+
+    def on_item(it: store.DeckItem) -> None:
+        _stub_dialog(
+            root,
+            "Shortcut",
+            f"{item_display_label(it)}\n\n{it.source_path}\n\n"
+            "Launch / editor comes in later slices.",
+        )
 
     def on_close() -> None:
         persist_now()
@@ -152,23 +134,42 @@ def run() -> None:
         anchor="w",
     ).pack(fill="x", pady=(0, 8))
 
-    ghost = dict(
-        corner_radius=8,
-        fg_color="#2a2a2a",
-        hover_color="#3d3d3d",
-        font=ctk.CTkFont(size=13),
-        height=48,
+    deck_grid = DeckGridView(
+        inner,
+        on_item_activated=on_item,
+        on_add=on_add_link,
     )
-    row = ctk.CTkFrame(inner, fg_color="transparent", height=56)
-    row.pack(fill="x", pady=(4, 0))
-    row.pack_propagate(False)
-    ctk.CTkButton(
-        row,
-        text="+  Add shortcut (ghost row)",
-        command=on_add_link,
-        anchor="w",
-        **ghost,
-    ).pack(fill="x", expand=True)
+    deck_grid.rebuild(items)
+    deck_grid.widget.pack(fill="both", expand=True)
+
+    def flush_layout_and_persist() -> None:
+        debounce_id[0] = None
+        min_h2 = min_panel_height(n)
+        max_h2 = max_panel_height(n)
+        sw = root.winfo_screenwidth()
+        vx, vy = root.winfo_vrootx(), root.winfo_vrooty()
+        vw, vh = root.winfo_vrootwidth(), root.winfo_vrootheight()
+        x, y = root.winfo_x(), root.winfo_y()
+        w, h = root.winfo_width(), root.winfo_height()
+        x, y, w, h = clamp_root_geometry(
+            x,
+            y,
+            w,
+            h,
+            vroot_x=vx,
+            vroot_y=vy,
+            vroot_w=vw,
+            vroot_h=vh,
+            max_w=sw,
+            min_w=MIN_PANEL_WIDTH,
+            min_h=min_h2,
+            max_h=max_h2,
+        )
+        root.geometry(f"{w}x{h}+{x}+{y}")
+        root.maxsize(sw, max_h2)
+        root.minsize(MIN_PANEL_WIDTH, min_h2)
+        deck_grid.sync_extra_row(root.winfo_height(), n)
+        persist_now()
 
     root.after_idle(lambda: root.after(0, flush_layout_and_persist))
     root.after(100, lambda: apply_tool_window_overlay(root))

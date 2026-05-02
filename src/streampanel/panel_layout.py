@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from streampanel.window_chrome import STRIP_HEIGHT
 
-# Until deck-grid-ui owns layout, assume this many columns for height math.
+# Column count for deck grid and height math (see deck_grid.py).
 DEFAULT_GRID_COLS = 4
 ROW_H = 56
 BODY_PAD_Y = 16
-# Status block inside body until real deck replaces it.
+# Status summary above the deck grid.
 BODY_ABOVE_GRID_H = 100
 MIN_PANEL_WIDTH = 360
 
